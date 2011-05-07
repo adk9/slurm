@@ -59,6 +59,7 @@ am__aclocal_m4_deps = $(top_srcdir)/auxdir/acx_pthread.m4 \
 	$(top_srcdir)/auxdir/x_ac_elan.m4 \
 	$(top_srcdir)/auxdir/x_ac_env.m4 \
 	$(top_srcdir)/auxdir/x_ac_federation.m4 \
+	$(top_srcdir)/auxdir/x_ac_ftb.m4 \
 	$(top_srcdir)/auxdir/x_ac_gpl_licensed.m4 \
 	$(top_srcdir)/auxdir/x_ac_hwloc.m4 \
 	$(top_srcdir)/auxdir/x_ac_iso.m4 \
@@ -174,6 +175,9 @@ ELAN_LIBS = @ELAN_LIBS@
 EXEEXT = @EXEEXT@
 FEDERATION_LDFLAGS = @FEDERATION_LDFLAGS@
 FGREP = @FGREP@
+FTB_CPPFLAGS = @FTB_CPPFLAGS@
+FTB_LDFLAGS = @FTB_LDFLAGS@
+FTB_LIBS = @FTB_LIBS@
 GREP = @GREP@
 GTK_CFLAGS = @GTK_CFLAGS@
 GTK_LIBS = @GTK_LIBS@

@@ -109,6 +109,9 @@
 /* Define to 1 if running slurmd on front-end only */
 #undef HAVE_FRONT_END
 
+/* Define to 1 if FTB library found */
+#undef HAVE_FTB
+
 /* Define to 1 if you have the `hstrerror' function. */
 #undef HAVE_HSTRERROR
 

@@ -241,6 +241,8 @@ X_AC_CRAY
 dnl checks for system services.
 dnl
 
+dnl check for FTB libraries
+X_AC_FTB
 
 dnl checks for system-specific stuff.
 dnl
