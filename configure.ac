@@ -513,6 +513,8 @@ AC_CONFIG_FILES([Makefile
 		 src/plugins/topology/node_rank/Makefile
 		 src/plugins/topology/none/Makefile
 		 src/plugins/topology/tree/Makefile
+		 src/plugins/notify/Makefile
+		 src/plugins/notify/ftb/Makefile
 		 doc/Makefile
 		 doc/man/Makefile
 		 doc/html/Makefile

@@ -8,6 +8,7 @@ SUBDIRS = \
 	jobcomp			\
 	job_submit		\
 	mpi			\
+	notify			\
 	preempt			\
 	priority		\
 	proctrack		\
