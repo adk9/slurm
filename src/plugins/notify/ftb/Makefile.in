@@ -107,7 +107,7 @@ am__base_list = \
 am__installdirs = "$(DESTDIR)$(pkglibdir)"
 LTLIBRARIES = $(pkglib_LTLIBRARIES)
 notify_ftb_la_LIBADD =
-am_notify_ftb_la_OBJECTS = notify_ftb.lo
+am_notify_ftb_la_OBJECTS = notify_ftb_la-notify_ftb.lo
 notify_ftb_la_OBJECTS = $(am_notify_ftb_la_OBJECTS)
 notify_ftb_la_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
@@ -333,7 +333,8 @@ pkglib_LTLIBRARIES = notify_ftb.la
 
 # FTB notify plugin.
 notify_ftb_la_SOURCES = notify_ftb.c
-notify_ftb_la_LDFLAGS = $(SO_LDFLAGS) $(PLUGIN_FLAGS)
+notify_ftb_la_CPPFLAGS = $(FTB_CPPFLAGS)
+notify_ftb_la_LDFLAGS = $(SO_LDFLAGS) $(PLUGIN_FLAGS) $(FTB_LDFLAGS) $(FTB_LIBS)
 all: all-am
 
 .SUFFIXES:
@@ -408,7 +409,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/notify_ftb.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/notify_ftb_la-notify_ftb.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -430,6 +431,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+notify_ftb_la-notify_ftb.lo: notify_ftb.c
+@am__fastdepCC_TRUE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(notify_ftb_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT notify_ftb_la-notify_ftb.lo -MD -MP -MF $(DEPDIR)/notify_ftb_la-notify_ftb.Tpo -c -o notify_ftb_la-notify_ftb.lo `test -f 'notify_ftb.c' || echo '$(srcdir)/'`notify_ftb.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/notify_ftb_la-notify_ftb.Tpo $(DEPDIR)/notify_ftb_la-notify_ftb.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='notify_ftb.c' object='notify_ftb_la-notify_ftb.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL)  --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(notify_ftb_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o notify_ftb_la-notify_ftb.lo `test -f 'notify_ftb.c' || echo '$(srcdir)/'`notify_ftb.c
 
 mostlyclean-libtool:
 	-rm -f *.lo
