@@ -1,3 +1,3 @@
 # Makefile for notify plugins
 
-SUBDIRS = ftb
+SUBDIRS = ftb none

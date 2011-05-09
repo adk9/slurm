@@ -517,6 +517,7 @@ AC_CONFIG_FILES([Makefile
 		 src/plugins/topology/tree/Makefile
 		 src/plugins/notify/Makefile
 		 src/plugins/notify/ftb/Makefile
+		 src/plugins/notify/none/Makefile
 		 doc/Makefile
 		 doc/man/Makefile
 		 doc/html/Makefile
