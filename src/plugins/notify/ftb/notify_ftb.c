@@ -55,6 +55,7 @@
 #include "slurm/slurm.h"
 #include "slurm/slurm_errno.h"
 
+#include "src/common/slurm_notify.h"
 #include "src/slurmctld/slurmctld.h"
 #include "ftb.h"
 
