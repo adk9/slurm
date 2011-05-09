@@ -603,6 +603,12 @@ char *slurm_get_task_plugin(void);
 /* slurm_get_task_plugin_param */
 uint16_t slurm_get_task_plugin_param(void);
 
+/* slurm_get_notify_type
+ * returns the notifier type from slurmctld_conf object
+ * RET char *    - notify type,  MUST be xfreed by caller
+ */
+char *slurm_get_notify_type(void);
+
 /**********************************************************************\
  * general message management functions used by slurmctld, slurmd
 \**********************************************************************/

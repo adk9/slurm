@@ -1757,6 +1757,7 @@ free_slurm_conf (slurm_ctl_conf_t *ctl_conf_ptr, bool purge_node_hash)
 	xfree (ctl_conf_ptr->mpi_default);
 	xfree (ctl_conf_ptr->mpi_params);
 	xfree (ctl_conf_ptr->node_prefix);
+	xfree (ctl_conf_ptr->notify_type);
 	xfree (ctl_conf_ptr->plugindir);
 	xfree (ctl_conf_ptr->plugstack);
 	xfree (ctl_conf_ptr->preempt_type);
@@ -1871,6 +1872,7 @@ init_slurm_conf (slurm_ctl_conf_t *ctl_conf_ptr)
 	ctl_conf_ptr->msg_timeout		= (uint16_t) NO_VAL;
 	ctl_conf_ptr->next_job_id		= (uint32_t) NO_VAL;
 	xfree (ctl_conf_ptr->node_prefix);
+	xfree (ctl_conf_ptr->notify_type);
 	ctl_conf_ptr->over_time_limit           = 0;
 	xfree (ctl_conf_ptr->plugindir);
 	xfree (ctl_conf_ptr->plugstack);
@@ -2581,6 +2583,9 @@ _validate_and_set_defaults(slurm_ctl_conf_t *conf, s_p_hashtbl_t *hashtbl)
 		xfree(conf->accounting_storage_user);
 		conf->accounting_storage_user = xstrdup("N/A");
 	}
+
+	if (!s_p_get_string(&conf->notify_type, "NotifyType", hashtbl))
+		conf->notify_type = xstrdup(DEFAULT_NOTIFY_TYPE);
 
 	s_p_get_uint16(&conf->over_time_limit, "OverTimeLimit", hashtbl);
 

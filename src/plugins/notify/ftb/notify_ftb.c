@@ -90,21 +90,82 @@ const char plugin_name[]       	= "Notify FTB plugin";
 const char plugin_type[]       	= "notify/ftb";
 const uint32_t plugin_version	= 100;
 
+const FTB_event_info_t ftb_events[] = {
+	{"RMJS_NODE_DOWN", 	 "ERROR"},
+	{"RMJS_NODE_UP", 	 "INFO"},
+	{"RMJS_NODE_IDLE",       "INFO"},
+	{"RMJS_NODE_ALLOCATED",  "INFO"},
+	{"RMJS_NODE_POWER_SAVE", "INFO"},
+};
+
+static FTB_client_handle_t chandle;
+static FTB_client_t client;
+
 /*
  * init() is called when the plugin is loaded, before any other functions
  * are called.  Put global initialization here.
  */
 extern int init ( void )
 {
+	int ret = 0;
+	strcpy(client.event_space, "FTB.SLURM");
+	strcpy(client.client_subscription_style, "FTB_SUBSCRIPTION_NONE");
+
+	ret = FTB_Connect(&client, &chandle);
+	if (ret != FTB_SUCCESS)
+		return error("FTB_Connect() failed (error %d)", ret);
+
+	ret = FTB_Declare_publishable_events(chandle, 0, ftb_events, 1);
+	if (ret != FTB_SUCCESS)
+		return error("FTB_Declare_publishable_events() failed (error %d)", ret);
+
 	return SLURM_SUCCESS;
 }
 
 extern int fini ( void )
 {
-	return SLURM_SUCCESS;
+	return FTB_Disconnect(chandle);
+}
+
+static char *node_event (uint16_t state)
+{
+	switch(state) {
+	case NODE_STATE_DOWN:
+	case NODE_STATE_FAIL:
+		return ftb_events[0].event_name;
+	case NODE_STATE_POWER_UP:
+	case NODE_RESUME:
+		return ftb_events[1].event_name;
+	case NODE_STATE_IDLE:
+		return ftb_events[2].event_name;
+	case NODE_STATE_ALLOCATED:
+		return ftb_events[3].event_name;
+	case NODE_STATE_POWER_SAVE:
+		return ftb_events[4].event_name;
+	default:
+		return NULL;
+	}
 }
 
 /*
  * The remainder of this file implements the standard SLURM notify API.
  */
+extern int slurm_notify_nodestate (uint16_t state, char *payload)
+{
+	int rc;
+	FTB_event_handle_t evt;
+	FTB_event_properties_t prop;
+	char *event;
 
+	prop.event_type = 1;
+	snprintf(prop.event_payload, FTB_MAX_PAYLOAD_DATA, "%s",
+		 (payload != NULL) ? payload : "");
+	event = node_event(state);
+	if (event) {
+		rc = FTB_Publish(chandle, node_event(state), &prop, &evt);
+		if (rc != FTB_SUCCESS)
+			return error("FTB_Publish failed (error %d)", rc);
+	}
+
+	return SLURM_SUCCESS;
+}

@@ -1822,6 +1822,24 @@ uint16_t slurm_get_task_plugin_param(void)
 	return task_plugin_param;
 }
 
+/* slurm_get_notify_type
+ * returns the notifier type from slurmctld_conf object
+ * RET char *    - notify type,  MUST be xfreed by caller
+ */
+char *slurm_get_notify_type(void)
+{
+	char *notify_type = NULL;
+	slurm_ctl_conf_t *conf;
+
+	if (slurmdbd_conf) {
+	} else {
+		conf = slurm_conf_lock();
+		notify_type = xstrdup(conf->notify_type);
+		slurm_conf_unlock();
+	}
+	return notify_type;
+}
+
 /* Change general slurm communication errors to slurmctld specific errors */
 static void _remap_slurmctld_errno(void)
 {

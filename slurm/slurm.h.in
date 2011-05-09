@@ -1805,6 +1805,7 @@ typedef struct slurm_ctl_conf {
 	uint32_t next_job_id;	/* next slurm generated job_id to assign */
 	char *node_prefix;      /* prefix of nodes in partition, only set in
 				   bluegene clusters NULL otherwise */
+	char *notify_type;	/* notifier type */
 	uint16_t over_time_limit; /* job's time limit can be exceeded by this
 				   * number of minutes before cancellation */
 	char *plugindir;	/* pathname to plugins */

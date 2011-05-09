@@ -528,6 +528,7 @@ void _fill_ctld_conf(slurm_ctl_conf_t * conf_ptr)
 
 	conf_ptr->next_job_id         = get_next_job_id();
 	conf_ptr->node_prefix         = xstrdup(conf->node_prefix);
+	conf_ptr->notify_type         = xstrdup(conf->notify_type);
 
 	conf_ptr->over_time_limit     = conf->over_time_limit;
 
