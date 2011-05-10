@@ -198,7 +198,7 @@ _slurm_notify_get_ops( slurm_notify_context_t c )
 }
 
 extern int
-notify_init( char *notify_type )
+notify_init( void )
 {
 	int retval = SLURM_SUCCESS;
 	char *notify_type;

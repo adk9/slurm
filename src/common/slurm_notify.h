@@ -60,7 +60,7 @@
 typedef struct slurm_notify_context *slurm_notify_context_t;
 
 /* initialization of the notifier */
-extern int notify_init(char *notify_type);
+extern int notify_init(void);
 
 /* terminate pthreads and free, general clean-up for termination */
 extern int notify_fini(void);
