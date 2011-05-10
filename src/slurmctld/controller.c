@@ -449,6 +449,8 @@ int main(int argc, char *argv[])
 		fatal( "failed to initialize jobacct_gather plugin");
 	if (job_submit_plugin_init() != SLURM_SUCCESS )
 		fatal( "failed to initialize job_submit plugin");
+	if (notify_init() != SLURM_SUCCESS )
+		fatal( "failed to initialize notify plugin" );
 
 	while (1) {
 		/* initialization for each primary<->backup switch */
