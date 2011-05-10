@@ -318,6 +318,19 @@ extern void ba_node_map_print(bitstr_t *node_bitmap,
 			      ba_geo_system_t *my_geo_system);
 
 /*
+ * give a hostlist version of the contents of a node map created by
+ *	ba_node_map_alloc() or
+ *	ba_geo_test_all(). Output may be in one-dimension or more depending
+ *	upon configuration.
+ * IN node_bitmap - bitmap representing current system state, bits are set
+ *                  for currently allocated nodes
+ * IN my_geo_system - system geometry specification
+ * OUT char * - needs to be xfreed from caller.
+ */
+extern char *ba_node_map_ranged_hostlist(bitstr_t *node_bitmap,
+					 ba_geo_system_t *my_geo_system);
+
+/*
  * Attempt to place a new allocation into an existing node state.
  * Do not rotate or change the requested geometry, but do attempt to place
  * it using all possible starting locations.
@@ -499,6 +512,14 @@ extern int load_block_wiring(char *bg_block_id);
 extern void ba_rotate_geo(uint16_t *req_geo, int rot_cnt);
 
 extern ba_mp_t *ba_pick_sub_block_cnodes(
-	bg_record_t *bg_record, uint32_t node_count, bitstr_t **picked_cnodes);
+	bg_record_t *bg_record, uint32_t *node_count,
+	select_jobinfo_t *jobinfo);
+
+extern int ba_clear_sub_block_cnodes(
+	bg_record_t *bg_record, struct step_record *step_ptr);
+
+/* set the ionode str based off the block allocator, either ionodes
+ * or cnode coords */
+extern char *ba_set_ionode_str(bitstr_t *bitmap);
 
 #endif

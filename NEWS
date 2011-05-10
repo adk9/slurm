@@ -57,6 +57,8 @@ documents those changes that are of interest to users and admins.
  -- Fix srun to handle signals correctly when waiting for a step creation.
  -- Preserve the last job ID across slurmctld daemon restarts even if the job
     state file can not be fully recovered.
+ -- Made the hostlist functions be able to arbitrarily handle any size
+    dimension no matter what the size of the cluster is in dimensions.
 
 * Changes in SLURM 2.3.0.pre4
 =============================
@@ -180,6 +182,7 @@ documents those changes that are of interest to users and admins.
     obviously wrong.
  -- Fix bug in node stat if slurmctld is restarted while nodes are in the
     process of being powered up. Patch from Andriy Grytsenko.
+ -- Change maximum batch script size from 128k to 4M.
 
 * Changes in SLURM 2.2.5
 ========================
