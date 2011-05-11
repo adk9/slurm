@@ -92,11 +92,11 @@ const char plugin_type[]       	= "notify/ftb";
 const uint32_t plugin_version	= 100;
 
 const FTB_event_info_t ftb_events[] = {
-	{"RMJS_NODE_DOWN", 	 "ERROR"},
-	{"RMJS_NODE_UP", 	 "INFO"},
-	{"RMJS_NODE_IDLE",       "INFO"},
-	{"RMJS_NODE_ALLOCATED",  "INFO"},
-	{"RMJS_NODE_POWER_SAVE", "INFO"},
+	{"MON_NODES_UNREACHABLE","ERROR"},
+	{"MON_NODES_ALIVE", 	 "INFO"},
+	{"MON_NODES_IDLE",       "INFO"},
+	{"RM_NODES_REMOVED",     "INFO"},
+	{"MON_NODES_POWER_SAVE", "INFO"},
 };
 
 static FTB_client_handle_t chandle;
