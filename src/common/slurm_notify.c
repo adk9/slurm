@@ -63,7 +63,7 @@
  * at the end of the structure.
  */
 typedef struct slurm_notify_ops {
-	int          (*nodestate) (uint16_t state, char *payload);
+	int          (*log) (uint16_t state, char *payload);
 } slurm_notify_ops_t;
 
 /*
@@ -140,7 +140,7 @@ _slurm_notify_get_ops( slurm_notify_context_t c )
          * declared for slurm_notify_ops_t.
          */
 	static const char *syms[] = {
-		"slurm_notify_nodestate"
+		"slurm_notify_log"
 	};
         int n_syms = sizeof( syms ) / sizeof( char * );
 
@@ -247,13 +247,13 @@ done:
 }
 
 extern int
-notify_nodestate(uint16_t state, char *payload)
+notify_log(uint16_t state, char *payload)
 {
 	int retval = SLURM_SUCCESS;
 
 	slurm_mutex_lock( &context_lock );
 	if ( g_context )
-		retval = (*(g_context->ops.nodestate))(state, payload);
+		retval = (*(g_context->ops.log))(state, payload);
 	else {
 		error ("slurm_notify plugin context not initialized");
 		retval = ENOENT;

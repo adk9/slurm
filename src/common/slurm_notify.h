@@ -66,6 +66,6 @@ extern int notify_init(void);
 extern int notify_fini(void);
 
 /* notify a node's state over the notifier  */
-extern int notify_nodestate(uint16_t state, char *payload);
+extern int notify_log(uint16_t state, char *payload);
 
 #endif /*__SLURM_NOTIFY_H__*/

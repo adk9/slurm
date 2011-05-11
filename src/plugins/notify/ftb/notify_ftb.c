@@ -151,7 +151,7 @@ static char *node_event (uint16_t state)
 /*
  * The remainder of this file implements the standard SLURM notify API.
  */
-extern int slurm_notify_nodestate (uint16_t state, char *payload)
+extern int slurm_notify_log (uint16_t state, char *payload)
 {
 	int rc;
 	FTB_event_handle_t evt;
