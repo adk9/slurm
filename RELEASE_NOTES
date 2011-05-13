@@ -64,7 +64,7 @@ COMMAND CHANGES (see man pages for details)
 
 BLUEGENE SPECIFIC CHANGES
 =========================
-
+BGQ support added.
 
 OTHER CHANGES
 =============
@@ -98,6 +98,9 @@ job_info_t
 	batch_host		name of the host running the batch script
 	preempt_time		time that a job become preempted
 
+job_step_create_response_msg_t
+	select_jobinfo		data needed from the select plugin for a step
+
 partition_info_t
 	grace_time		preempted job's grace time in seconds
 
@@ -123,7 +126,9 @@ job_state_reason
 	WAIT_QOS_THRES        	/* required QOS threshold has been breached */
 
 select_jobdata_type
-	SELECT_JOBDATA_PTR	/* data-> select_jobinfo_t *jobinfo */
+	SELECT_JOBDATA_PTR	 /* data-> select_jobinfo_t *jobinfo */
+	SELECT_JOBDATA_BLOCK_PTR /* data-> bg_record_t *bg_record */
+	SELECT_JOBDATA_DIM_CNT   /* data-> uint16_t dim_cnt */
 
 select_nodedata_type
 	SELECT_NODEDATA_PTR     /* data-> select_nodeinfo_t *nodeinfo */

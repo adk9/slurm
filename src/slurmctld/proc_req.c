@@ -1679,6 +1679,8 @@ static void _slurm_rpc_job_step_create(slurm_msg_t * msg)
 		}
 #endif
 		job_step_resp.cred        = slurm_cred;
+		job_step_resp.select_jobinfo = select_g_select_jobinfo_copy(
+			step_rec->select_jobinfo);
 		job_step_resp.switch_job  = switch_copy_jobinfo(
 			step_rec->switch_job);
 
@@ -4069,7 +4071,8 @@ inline static void _slurm_rpc_dump_spank(slurm_msg_t * msg)
 	DEF_TIMERS;
 
 	START_TIMER;
-	debug("Processing RPC: REQUEST_SPANK_ENVIRONMENT from uid=%d", uid);
+	debug("Processing RPC: REQUEST_SPANK_ENVIRONMENT from uid=%d JobId=%u",
+	      uid, spank_req_msg->job_id);
 	if (!validate_slurm_user(uid)) {
 		rc = ESLURM_USER_ID_MISSING;
 		error("Security violation, REQUEST_SPANK_ENVIRONMENT RPC "

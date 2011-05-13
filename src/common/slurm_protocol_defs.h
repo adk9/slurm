@@ -616,6 +616,7 @@ typedef struct job_step_create_response_msg {
 	slurm_step_layout_t *step_layout; /* information about how the
                                            * step is laid out */
 	slurm_cred_t *cred;    	  /* slurm job credential */
+	dynamic_plugin_data_t *select_jobinfo;	/* select opaque data type */
 	switch_jobinfo_t *switch_job;	/* switch context, opaque
                                          * data structure */
 } job_step_create_response_msg_t;
@@ -981,7 +982,7 @@ inline void slurm_free_set_debug_level_msg(set_debug_level_msg_t *msg);
 inline void slurm_destroy_association_shares_object(void *object);
 inline void slurm_free_shares_request_msg(shares_request_msg_t *msg);
 inline void slurm_free_shares_response_msg(shares_response_msg_t *msg);
-inline void slurm_destroy_priority_factors_object(void *object);
+extern inline void slurm_destroy_priority_factors_object(void *object);
 inline void slurm_free_priority_factors_request_msg(
 	priority_factors_request_msg_t *msg);
 inline void slurm_free_priority_factors_response_msg(
