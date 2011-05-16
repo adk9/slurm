@@ -53,11 +53,9 @@ AC_DEFUN([X_AC_FTB], [
     FTB_LIBS="-lftb"
   fi
 
-  AC_DEFINE(HAVE_FTB, 1, [Define to 1 if FTB library found])
-
   AC_SUBST(FTB_LIBS)
   AC_SUBST(FTB_CPPFLAGS)
   AC_SUBST(FTB_LDFLAGS)
 
-  AM_CONDITIONAL(WITH_FTB, test -n "$x_ac_cv_ftb_dir")
+  AM_CONDITIONAL(HAVE_FTB, test -n "$x_ac_cv_ftb_dir")
 ])
