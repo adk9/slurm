@@ -164,7 +164,7 @@ extern int slurm_notify_log (uint16_t state, char *payload)
 		 (payload != NULL) ? payload : "");
 	event = node_event(state);
 	if (event) {
-		rc = FTB_Publish(chandle, node_event(state), &prop, &evt);
+		rc = FTB_Publish(chandle, event, &prop, &evt);
 		if (rc != FTB_SUCCESS)
 			return error("FTB_Publish failed (error %d)", rc);
 	}
