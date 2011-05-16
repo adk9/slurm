@@ -50,18 +50,15 @@
 #  include <inttypes.h>
 #endif
 
-#ifdef HAVE_FTB
-#  include <ftb.h>
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "slurm/slurm.h"
 #include "slurm/slurm_errno.h"
-
 #include "src/common/slurm_notify.h"
 #include "src/slurmctld/slurmctld.h"
+
+#include <ftb.h>
 
 /*
  * These variables are required by the generic plugin interface.  If they
