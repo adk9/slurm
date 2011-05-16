@@ -215,6 +215,7 @@ s_p_options_t slurm_conf_options[] = {
 	{"MinJobAge", S_P_UINT16},
 	{"MpiDefault", S_P_STRING},
 	{"MpiParams", S_P_STRING},
+	{"NotifyType", S_P_STRING},
 	{"OverTimeLimit", S_P_UINT16},
 	{"PluginDir", S_P_STRING},
 	{"PlugStackConfig", S_P_STRING},
