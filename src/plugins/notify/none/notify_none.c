@@ -107,7 +107,7 @@ extern int fini ( void )
 /*
  * The remainder of this file implements the standard SLURM notify API.
  */
-int slurm_notify_log (uint16_t state, char *payload)
+int slurm_notify_log (uint16_t state, void *arg)
 {
 	return SLURM_SUCCESS;
 }

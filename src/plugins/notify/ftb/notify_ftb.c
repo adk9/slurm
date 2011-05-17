@@ -92,12 +92,17 @@ const char plugin_name[]       	= "Notify FTB plugin";
 const char plugin_type[]       	= "notify/ftb";
 const uint32_t plugin_version	= 100;
 
-const FTB_event_info_t ftb_events[] = {
+const FTB_event_info_t slurm_ftb_events[] = {
 	{"MON_NODES_UNREACHABLE","ERROR"},
 	{"MON_NODES_ALIVE", 	 "INFO"},
 	{"MON_NODES_IDLE",       "INFO"},
 	{"RM_NODES_REMOVED",     "INFO"},
 	{"MON_NODES_POWER_SAVE", "INFO"},
+};
+
+struct slurm_ftb_event_t {
+	char *name;
+	FTB_event_properties_t properties;
 };
 
 static FTB_client_handle_t chandle;
@@ -117,7 +122,7 @@ extern int init ( void )
 	if (ret != FTB_SUCCESS)
 		return error("FTB_Connect() failed (error %d)", ret);
 
-	ret = FTB_Declare_publishable_events(chandle, 0, ftb_events, 1);
+	ret = FTB_Declare_publishable_events(chandle, 0, slurm_ftb_events, 1);
 	if (ret != FTB_SUCCESS)
 		return error("FTB_Declare_publishable_events() failed (error %d)", ret);
 
@@ -129,42 +134,50 @@ extern int fini ( void )
 	return FTB_Disconnect(chandle);
 }
 
-static char *node_event (uint16_t state)
+int get_ftb_node_event (uint16_t state, void *arg, struct slurm_ftb_event_t *event)
 {
+	struct node_record *node;
+
+	node = (struct node_record *) arg;
 	switch(state) {
 	case NODE_STATE_DOWN:
 	case NODE_STATE_FAIL:
-		return ftb_events[0].event_name;
+		event->name = slurm_ftb_events[0].event_name;
+		break;
 	case NODE_STATE_POWER_UP:
 	case NODE_RESUME:
-		return ftb_events[1].event_name;
+		event->name = slurm_ftb_events[1].event_name;
+		break;
 	case NODE_STATE_IDLE:
-		return ftb_events[2].event_name;
+		event->name = slurm_ftb_events[2].event_name;
+		break;
 	case NODE_STATE_ALLOCATED:
-		return ftb_events[3].event_name;
+		event->name = slurm_ftb_events[3].event_name;
+		break;
 	case NODE_STATE_POWER_SAVE:
-		return ftb_events[4].event_name;
+		event->name = slurm_ftb_events[4].event_name;
+		break;
 	default:
-		return NULL;
+		return -1;
 	}
+
+	event->properties.event_type = 1;
+	snprintf(event->properties.event_payload, FTB_MAX_PAYLOAD_DATA, "id: %s", node->name);
+	return 0;
 }
 
 /*
  * The remainder of this file implements the standard SLURM notify API.
  */
-extern int slurm_notify_log (uint16_t state, char *payload)
+extern int slurm_notify_log (uint16_t state, void *arg)
 {
 	int rc;
+	struct slurm_ftb_event_t event;
 	FTB_event_handle_t evt;
-	FTB_event_properties_t prop;
-	char *event;
 
-	prop.event_type = 1;
-	snprintf(prop.event_payload, FTB_MAX_PAYLOAD_DATA, "%s",
-		 (payload != NULL) ? payload : "");
-	event = node_event(state);
-	if (event) {
-		rc = FTB_Publish(chandle, event, &prop, &evt);
+	rc = get_ftb_node_event(state, arg, &event);
+	if (rc >= 0) {
+		rc = FTB_Publish(chandle, event.name, &(event.properties), &evt);
 		if (rc != FTB_SUCCESS)
 			return error("FTB_Publish failed (error %d)", rc);
 	}

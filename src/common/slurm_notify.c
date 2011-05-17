@@ -247,13 +247,13 @@ done:
 }
 
 extern int
-notify_log(uint16_t state, char *payload)
+notify_log(uint16_t state, void *arg)
 {
 	int retval = SLURM_SUCCESS;
 
 	slurm_mutex_lock( &context_lock );
 	if ( g_context )
-		retval = (*(g_context->ops.log))(state, payload);
+		retval = (*(g_context->ops.log))(state, arg);
 	else {
 		error ("slurm_notify plugin context not initialized");
 		retval = ENOENT;
