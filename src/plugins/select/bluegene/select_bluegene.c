@@ -814,6 +814,8 @@ static int _load_state_file(List curr_block_list, char *dir_name)
 		list_push(curr_block_list, bg_record);
 	}
 
+	FREE_NULL_BITMAP(usable_mp_bitmap);
+
 	sort_bg_record_inc_size(curr_block_list);
 	slurm_mutex_unlock(&block_state_mutex);
 
@@ -824,6 +826,7 @@ static int _load_state_file(List curr_block_list, char *dir_name)
 	return SLURM_SUCCESS;
 
 unpack_error:
+	FREE_NULL_BITMAP(usable_mp_bitmap);
 	slurm_mutex_unlock(&block_state_mutex);
 	error("Incomplete block data checkpoint file");
 	free_buf(buffer);
@@ -1666,6 +1669,10 @@ extern bitstr_t *select_p_step_pick_nodes(struct job_record *job_ptr,
 		xfree(tmp_char);
 	}
 
+	xfree(step_jobinfo->bg_block_id);
+	step_jobinfo->bg_block_id = xstrdup(bg_record->bg_block_id);
+	step_jobinfo->block_cnode_cnt = bg_record->cnode_cnt;
+
 	if (((cluster_flags & CLUSTER_FLAG_BGL)
 	     || (cluster_flags & CLUSTER_FLAG_BGP))
 	    || (node_count == bg_record->cnode_cnt)) {
@@ -1676,6 +1683,7 @@ extern bitstr_t *select_p_step_pick_nodes(struct job_record *job_ptr,
 		   On BGL/P This is always the default, no matter how
 		   big the step is since you can only run 1 step per block.
 		*/
+		step_jobinfo->dim_cnt = jobinfo->dim_cnt;
 		if (bit_ffs(avail_mps) != -1) {
 			if (bg_conf->slurm_debug_flags & DEBUG_FLAG_BG_PICK)
 				info("select_p_step_pick_nodes: Looking "
@@ -1688,7 +1696,6 @@ extern bitstr_t *select_p_step_pick_nodes(struct job_record *job_ptr,
 			fatal("bit_copy malloc failure");
 		bit_or(bg_record->mp_used_bitmap, picked_mps);
 		step_jobinfo->ionode_str = xstrdup(jobinfo->ionode_str);
-		step_jobinfo->dim_cnt = jobinfo->dim_cnt;
 		goto found_it;
 	} else if ((ba_mp = ba_pick_sub_block_cnodes(
 			    bg_record, &node_count,
@@ -1715,7 +1722,6 @@ found_it:
 	}
 
 end_it:
-
 	FREE_NULL_BITMAP(avail_mps);
 
 	slurm_mutex_unlock(&block_state_mutex);

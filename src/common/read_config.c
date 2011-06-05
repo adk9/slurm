@@ -438,8 +438,10 @@ static int _parse_frontend(void **dest, slurm_parser_enum_t type,
 			return -1;
 		}
 
-		if (default_frontend_tbl != NULL)
+		if (default_frontend_tbl != NULL) {
+			s_p_hashtbl_merge(tbl, default_frontend_tbl);
 			s_p_hashtbl_destroy(default_frontend_tbl);
+		}
 		default_frontend_tbl = tbl;
 
 		return 0;
@@ -529,8 +531,10 @@ static int _parse_nodename(void **dest, slurm_parser_enum_t type,
 			return -1;
 		}
 
-		if (default_nodename_tbl != NULL)
+		if (default_nodename_tbl != NULL) {
+			s_p_hashtbl_merge(tbl, default_frontend_tbl);
 			s_p_hashtbl_destroy(default_nodename_tbl);
+		}
 		default_nodename_tbl = tbl;
 
 		return 0;
@@ -812,8 +816,10 @@ static int _parse_partitionname(void **dest, slurm_parser_enum_t type,
 	/* s_p_dump_values(tbl, _partition_options); */
 
 	if (strcasecmp(value, "DEFAULT") == 0) {
-		if (default_partition_tbl != NULL)
+		if (default_partition_tbl != NULL) {
+			s_p_hashtbl_merge(tbl, default_partition_tbl);
 			s_p_hashtbl_destroy(default_partition_tbl);
+		}
 		default_partition_tbl = tbl;
 
 		return 0;
@@ -2740,7 +2746,7 @@ _validate_and_set_defaults(slurm_ctl_conf_t *conf, s_p_hashtbl_t *hashtbl)
 			conf->proctrack_type =
 				xstrdup(DEFAULT_PROCTRACK_TYPE);
 	}
-#if defined HAVE_CRAY && !defined HAVE_CRAY_EMULATION
+#ifdef HAVE_REAL_CRAY
 	if (strcmp(conf->proctrack_type, "proctrack/sgi_job"))
 		fatal("On Cray ProctrackType=proctrack/sgi_job is required to "
 		      "ensure collision-free tracking of ALPS reservations");
@@ -2885,7 +2891,7 @@ _validate_and_set_defaults(slurm_ctl_conf_t *conf, s_p_hashtbl_t *hashtbl)
 			conf->slurm_user_id = my_uid;
 		}
 	}
-#if defined HAVE_CRAY && !defined HAVE_CRAY_EMULATION && !defined HAVE_ALPS_EMULATION
+#ifdef HAVE_REAL_CRAY
 	/*
 	 * This requirement derives from Cray ALPS:
 	 * - ALPS reservations can only be created by the job owner or root

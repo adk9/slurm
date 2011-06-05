@@ -58,6 +58,7 @@
 #include "src/common/daemonize.h"
 #include "src/common/fd.h"
 #include "src/common/forward.h"
+#include "src/common/gres.h"
 #include "src/common/hostlist.h"
 #include "src/common/log.h"
 #include "src/common/macros.h"
@@ -74,6 +75,7 @@
 
 #include "src/slurmctld/agent.h"
 #include "src/slurmctld/front_end.h"
+#include "src/slurmctld/gang.h"
 #include "src/slurmctld/job_scheduler.h"
 #include "src/slurmctld/locks.h"
 #include "src/slurmctld/proc_req.h"
@@ -1483,6 +1485,8 @@ static void _slurm_rpc_complete_batch_script(slurm_msg_t * msg)
 		batch_step.requid = -1;
 		batch_step.start_time = job_ptr->start_time;
 		batch_step.name = "batch";
+		batch_step.select_jobinfo = job_ptr->select_jobinfo;
+
 		jobacct_storage_g_step_start(acct_db_conn, &batch_step);
 		jobacct_storage_g_step_complete(acct_db_conn, &batch_step);
 		FREE_NULL_BITMAP(batch_step.step_node_bitmap);
@@ -1670,19 +1674,17 @@ static void _slurm_rpc_job_step_create(slurm_msg_t * msg)
 		     req_step_msg->node_list, TIME_STR);
 
 		job_step_resp.job_step_id = step_rec->step_id;
-		job_step_resp.resv_ports  = xstrdup(step_rec->resv_ports);
-		job_step_resp.step_layout = slurm_step_layout_copy(layout);
+		job_step_resp.resv_ports  = step_rec->resv_ports;
+		job_step_resp.step_layout = layout;
 #ifdef HAVE_FRONT_END
 		if (step_rec->job_ptr->batch_host) {
 			job_step_resp.step_layout->front_end =
-				xstrdup(step_rec->job_ptr->batch_host);
+				step_rec->job_ptr->batch_host;
 		}
 #endif
 		job_step_resp.cred        = slurm_cred;
-		job_step_resp.select_jobinfo = select_g_select_jobinfo_copy(
-			step_rec->select_jobinfo);
-		job_step_resp.switch_job  = switch_copy_jobinfo(
-			step_rec->switch_job);
+		job_step_resp.select_jobinfo = step_rec->select_jobinfo;
+		job_step_resp.switch_job  = step_rec->switch_job;
 
 		unlock_slurmctld(job_write_lock);
 		slurm_msg_t_init(&resp);
@@ -1693,10 +1695,7 @@ static void _slurm_rpc_job_step_create(slurm_msg_t * msg)
 		resp.data = &job_step_resp;
 
 		slurm_send_node_msg(msg->conn_fd, &resp);
-		xfree(job_step_resp.resv_ports);
-		slurm_step_layout_destroy(job_step_resp.step_layout);
 		slurm_cred_destroy(slurm_cred);
-		switch_free_jobinfo(job_step_resp.switch_job);
 		schedule_job_save();	/* Sets own locks */
 	}
 }
@@ -1859,9 +1858,9 @@ static void _slurm_rpc_node_registration(slurm_msg_t * msg)
 	}
 	if (error_code == SLURM_SUCCESS) {
 		/* do RPC call */
-		if(!(slurm_get_debug_flags() & DEBUG_FLAG_NO_CONF_HASH)
-		   && (node_reg_stat_msg->hash_val != NO_VAL)
-		   && (node_reg_stat_msg->hash_val != slurm_get_hash_val())) {
+		if (!(slurm_get_debug_flags() & DEBUG_FLAG_NO_CONF_HASH) &&
+		    (node_reg_stat_msg->hash_val != NO_VAL) &&
+		    (node_reg_stat_msg->hash_val != slurm_get_hash_val())) {
 			error("Node %s appears to have a different slurm.conf "
 			      "than the slurmctld.  This could cause issues "
 			      "with communication and functionality.  "
@@ -3885,6 +3884,14 @@ inline static void  _slurm_rpc_set_debug_flags(slurm_msg_t *msg)
 	debug_flags |= request_msg->debug_flags_plus;
 	slurm_set_debug_flags(debug_flags);
 	slurmctld_conf.last_update = time(NULL);
+
+	/* Reset cached debug_flags values */
+	gs_reconfig();
+	gres_plugin_reconfig(NULL);
+	priority_g_reconfig();
+	select_g_reconfigure();
+	(void) slurm_sched_reconfig();
+
 	unlock_slurmctld (config_write_lock);
 	flag_string = debug_flags2str(debug_flags);
 	info("Set DebugFlags to %s", flag_string);

@@ -72,12 +72,15 @@
 #include "src/plugins/select/bluegene/bg_enums.h"
 #elif defined(HAVE_CRAY)
 #include "src/common/node_select.h"
+
+#ifdef HAVE_REAL_CRAY
 /*
  * On Cray installations, the libjob headers are not automatically installed
  * by default, while libjob.so always is, and kernels are > 2.6. Hence it is
  * simpler to just duplicate the single declaration here.
  */
 extern uint64_t job_getjid(pid_t pid);
+#endif
 #endif
 
 #define MAX_RETRIES	10
@@ -216,6 +219,7 @@ int main(int argc, char *argv[])
 	 * a) input is from a terminal (stdin has valid termios attributes),
 	 * b) controlling terminal exists (non-negative tpgid),
 	 * c) salloc is not run in allocation-only (--no-shell) mode,
+	 * NOTE: d and e below are configuration dependent
 	 * d) salloc runs in its own process group (true in interactive
 	 *    shells that support job control),
 	 * e) salloc has been configured at compile-time to support background
@@ -231,10 +235,10 @@ int main(int argc, char *argv[])
 			error("no controlling terminal: please set --no-shell");
 			exit(error_exit);
 		}
+#ifdef SALLOC_RUN_FOREGROUND
 	} else if ((!opt.no_shell) && (pid == getpgrp())) {
 		if (tpgid == pid)
 			is_interactive = true;
-#ifdef SALLOC_RUN_FOREGROUND
 		while (tcgetpgrp(STDIN_FILENO) != pid) {
 			if (!is_interactive) {
 				error("Waiting for program to be placed in "
@@ -243,8 +247,12 @@ int main(int argc, char *argv[])
 			}
 			killpg(pid, SIGTTIN);
 		}
-#endif
 	}
+#else
+	} else if (!opt.no_shell) {
+		is_interactive = true;
+	}
+#endif
 	/*
 	 * Reset saved tty attributes at exit, in case a child
 	 * process died before properly resetting terminal.
@@ -473,6 +481,9 @@ relinquish:
 
 		if (WIFEXITED(status)) {
 			rc = WEXITSTATUS(status);
+		} else if (WIFSTOPPED(status)) {
+			/* Terminate stopped child process */
+			_forward_signal(SIGKILL);
 		} else if (WIFSIGNALED(status)) {
 			verbose("Command \"%s\" was terminated by signal %d",
 				command_argv[0], WTERMSIG(status));
@@ -547,7 +558,7 @@ static void _set_submit_dir_env(void)
 /* Returns 0 on success, -1 on failure */
 static int _fill_job_desc_from_opts(job_desc_msg_t *desc)
 {
-#ifdef HAVE_CRAY
+#ifdef HAVE_REAL_CRAY
 	uint64_t pagg_id = job_getjid(getpid());
 	/*
 	 * Interactive sessions require pam_job.so in /etc/pam.d/common-session

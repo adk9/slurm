@@ -157,8 +157,11 @@ typedef struct block_allocator_mp {
 typedef struct {
 	int elem_count;			/* length of arrays set_count_array
 					 * and set_bits_array */
+	int *gap_count;			/* number of gaps in this array */
 	int *set_count_array;		/* number of set bits in this array */
 	bitstr_t **set_bits_array;	/* bitmap rows to use */
+	uint16_t *start_coord;		/* array of lowest coord in block */
+	uint16_t *block_size;		/* dimension size in block */
 } ba_geo_combos_t;
 
 extern ba_geo_combos_t geo_combos[LONGEST_BGQ_DIM_LEN];
@@ -169,6 +172,7 @@ extern uint32_t cluster_flags;
 extern int cluster_base;
 extern bool ba_initialized;
 extern uint32_t ba_debug_flags;
+extern bitstr_t *ba_main_mp_bitmap;
 
 /*
  * Initialize internal structures by either reading previous block
@@ -336,20 +340,31 @@ extern char *ba_node_map_ranged_hostlist(bitstr_t *node_bitmap,
  * it using all possible starting locations.
  *
  * IN node_bitmap - bitmap representing current system state, bits are set
- *                  for currently allocated nodes
+ *		for currently allocated nodes
  * OUT alloc_node_bitmap - bitmap representing where to place the allocation
- *                         set only if RET == SLURM_SUCCESS
+ *		set only if RET == SLURM_SUCCESS
  * IN geo_req - geometry required for the new allocation
  * OUT attempt_cnt - number of job placements attempted
  * IN my_geo_system - system geometry specification
- * IN gaps_ok - if set, then allow gaps in any dimension, any gap applies to
- *		all elements at that position in that dimension
+ * IN deny_pass - if set, then do not allow gaps in a specific dimension, any
+ *		gap applies to all elements at that position in that dimension,
+ *		one value per dimension, default value prevents gaps in any
+ *		dimension
+ * IN/OUT start_pos - input is pointer to array having same size as
+ *		dimension count or NULL. Set to starting coordinates of
+ *		the allocation in each dimension.
+ * IN/OUT scan_offset - Location in search table from which to continue
+ *		searching for resources. Initial value should be zero. If the
+ *		allocation selected by the algorithm is not acceptable, call
+ *		the function repeatedly with the previous output value of
+ *		scan_offset
  * RET - SLURM_SUCCESS if allocation can be made, otherwise SLURM_ERROR
  */
 extern int ba_geo_test_all(bitstr_t *node_bitmap,
 			   bitstr_t **alloc_node_bitmap,
 			   ba_geo_table_t *geo_req, int *attempt_cnt,
-			   ba_geo_system_t *my_geo_system, bool gaps_ok);
+			   ba_geo_system_t *my_geo_system, uint16_t *deny_pass,
+			   uint16_t *start_pos, int *scan_offset);
 
 /*
  * Used to set all midplanes in a special used state except the ones
@@ -398,7 +413,7 @@ extern void set_ba_debug_flags(uint32_t debug_flags);
 extern void reset_ba_system(bool track_down_mps);
 
 /* in the respective block_allocator.c */
-extern void ba_create_system(int num_cpus, int *real_dims);
+extern void ba_create_system(void);
 extern void ba_destroy_system(void);
 
 /*

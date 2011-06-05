@@ -51,10 +51,12 @@ int cluster_base = 36;
 uint32_t cluster_flags = 0;
 uint16_t ba_deny_pass = 0;
 
+ba_geo_combos_t geo_combos[LONGEST_BGQ_DIM_LEN];
+
 bool ba_initialized = false;
 uint32_t ba_debug_flags = 0;
 int DIM_SIZE[HIGHEST_DIMENSIONS];
-ba_geo_combos_t geo_combos[LONGEST_BGQ_DIM_LEN];
+bitstr_t *ba_main_mp_bitmap = NULL;
 
 static void _pack_ba_connection(ba_connection_t *ba_connection,
 				Buf buffer, uint16_t protocol_version)
@@ -213,31 +215,79 @@ static ba_geo_combos_t *_build_geo_bitmap_arrays(int size)
 {
 	int i, j;
 	ba_geo_combos_t *combos;
+	int gap_start, max_gap_start;
+	int gap_count, gap_len, max_gap_len;
 
 	xassert(size > 0);
 	combos = &geo_combos[size-1];
 	combos->elem_count = (1 << size) - 1;
+	combos->gap_count       = xmalloc(sizeof(int) * combos->elem_count);
 	combos->set_count_array = xmalloc(sizeof(int) * combos->elem_count);
 	combos->set_bits_array  = xmalloc(sizeof(bitstr_t *) *
 					  combos->elem_count);
+	combos->start_coord = xmalloc(sizeof(uint16_t *) * combos->elem_count);
+	combos->block_size  = xmalloc(sizeof(uint16_t *) * combos->elem_count);
+
 	for (i = 1; i <= combos->elem_count; i++) {
 		combos->set_bits_array[i-1] = bit_alloc(size);
 		if (combos->set_bits_array[i-1] == NULL)
 			fatal("bit_alloc: malloc failure");
+
+		gap_count = 0;
+		gap_start = -1;
+		max_gap_start = -1;
+		gap_len = 0;
+		max_gap_len = 0;
 		for (j = 0; j < size; j++) {
-			if (((i >> j) & 0x1) == 0)
+			if (((i >> j) & 0x1) == 0) {
+				if (gap_len++ == 0) {
+					gap_count++;
+					gap_start = j;
+				}
 				continue;
+			}
+			if (gap_len > max_gap_len) {
+				max_gap_len = gap_len;
+				max_gap_start = gap_start;
+			}
+			gap_len = 0;
 			bit_set(combos->set_bits_array[i-1], j);
 			combos->set_count_array[i-1]++;
 		}
+		if (gap_len) {	/* test for wrap in gap */
+			for (j = 0; j < size; j++) {
+				if (bit_test(combos->set_bits_array[i-1], j))
+					break;
+				if (j == 0)
+					gap_count--;
+				gap_len++;
+			}
+			if (gap_len >= max_gap_len) {
+				max_gap_len = gap_len;
+				max_gap_start = gap_start;
+			}
+		}
+
+		if (max_gap_len == 0) {
+			combos->start_coord[i-1] = 0;
+		} else {
+			combos->start_coord[i-1] = (max_gap_start +
+						    max_gap_len) % size;
+		}
+		combos->block_size[i-1] = size - max_gap_len;
+		combos->gap_count[i-1]  = gap_count;
 	}
 
 #if 0
-	info("size=%d", size);
+	info("geometry size=%d", size);
 	for (i = 0; i < combos->elem_count; i++) {
 		char buf[64];
 		bit_fmt(buf, sizeof(buf), combos->set_bits_array[i]);
-		info("cnt:%d bits:%s", combos->set_count_array[i], buf);
+		info("cnt:%d bits:%10s start_coord:%u block_size:%u "
+		     "gap_count:%d",
+		     combos->set_count_array[i], buf,
+		     combos->start_coord[i], combos->block_size[i],
+		     combos->gap_count[i]);
 	}
 	info("\n\n");
 #endif
@@ -256,18 +306,23 @@ static void _free_geo_bitmap_arrays(void)
 			if (combos->set_bits_array[j])
 				bit_free(combos->set_bits_array[j]);
 		}
+		xfree(combos->gap_count);
 		xfree(combos->set_count_array);
 		xfree(combos->set_bits_array);
+		xfree(combos->start_coord);
+		xfree(combos->block_size);
 	}
 }
 
 /* Find the next element in the geo_combinations array in a given dimension
  * that contains req_bit_cnt elements to use. Return -1 if none found. */
 static int _find_next_geo_inx(ba_geo_combos_t *geo_combo_ptr,
-			      int last_inx, uint16_t req_bit_cnt)
+			      int last_inx, uint16_t req_bit_cnt,
+			      bool deny_pass)
 {
 	while (++last_inx < geo_combo_ptr->elem_count) {
-		if (req_bit_cnt == geo_combo_ptr->set_count_array[last_inx])
+		if ((req_bit_cnt == geo_combo_ptr->set_count_array[last_inx])&&
+		    (!deny_pass || (geo_combo_ptr->gap_count[last_inx] < 2)))
 			return last_inx;
 	}
 	return -1;
@@ -316,17 +371,19 @@ static bitstr_t * _test_geo(bitstr_t *node_bitmap,
 	return NULL;
 }
 
-/* Attempt to place an allocation of a specific required geomemtry (reo_req)
+/* Attempt to place an allocation of a specific required geomemtry (geo_req)
  * into a bitmap of available resources (node_bitmap). The resource allocation
  * may contain gaps in multiple dimensions. */
 static int _geo_test_maps(bitstr_t *node_bitmap,
 			  bitstr_t **alloc_node_bitmap,
 			  ba_geo_table_t *geo_req, int *attempt_cnt,
-			  ba_geo_system_t *my_geo_system)
+			  ba_geo_system_t *my_geo_system, uint16_t *deny_pass,
+			  uint16_t *start_pos, int *scan_offset)
 {
-	int i;
+	int i, current_offset = -1;
 	ba_geo_combos_t *geo_array[my_geo_system->dim_count];
 	int geo_array_inx[my_geo_system->dim_count];
+	bool dim_deny_pass;
 
 	for (i = 0; i < my_geo_system->dim_count; i++) {
 		if (my_geo_system->dim_size[i] > LONGEST_BGQ_DIM_LEN) {
@@ -335,9 +392,14 @@ static int _geo_test_maps(bitstr_t *node_bitmap,
 			      "LONGEST_BGQ_DIM_LEN (%d)", LONGEST_BGQ_DIM_LEN);
 			return SLURM_ERROR;
 		}
+		if (deny_pass)
+			dim_deny_pass = (bool) deny_pass[i];
+		else	/* No passthru allowed by default */
+			dim_deny_pass = true;
 		geo_array[i] = &geo_combos[my_geo_system->dim_size[i] - 1];
 		geo_array_inx[i] = _find_next_geo_inx(geo_array[i], -1,
-						      geo_req->geometry[i]);
+						      geo_req->geometry[i],
+						      dim_deny_pass);
 		if (geo_array_inx[i] == -1) {
 			error("Request to allocate %u nodes in dimension %d, "
 			      "which only has %d elements",
@@ -349,115 +411,46 @@ static int _geo_test_maps(bitstr_t *node_bitmap,
 
 	*alloc_node_bitmap = (bitstr_t *) NULL;
 	while (1) {
-		(*attempt_cnt)++;
-		*alloc_node_bitmap = _test_geo(node_bitmap, my_geo_system,
-					       geo_array, geo_array_inx);
-		if (*alloc_node_bitmap)
-			return SLURM_SUCCESS;
+		current_offset++;
+		if (!scan_offset || (current_offset >= *scan_offset)) {
+			(*attempt_cnt)++;
+			*alloc_node_bitmap = _test_geo(node_bitmap,
+						       my_geo_system,
+						       geo_array,
+						       geo_array_inx);
+			if (*alloc_node_bitmap)
+				break;
+		}
 
 		/* Increment offsets */
 		for (i = 0; i < my_geo_system->dim_count; i++) {
+			if (deny_pass)
+				dim_deny_pass = (bool) deny_pass[i];
+			else	/* No passthru allowed by default */
+				dim_deny_pass = true;
 			geo_array_inx[i] = _find_next_geo_inx(geo_array[i],
 							geo_array_inx[i],
-						     	geo_req->geometry[i]);
+						     	geo_req->geometry[i],
+						     	dim_deny_pass);
 			if (geo_array_inx[i] != -1)
 				break;
 			geo_array_inx[i] = _find_next_geo_inx(geo_array[i], -1,
-							geo_req->geometry[i]);
+							geo_req->geometry[i],
+						     	dim_deny_pass);
 		}
 		if (i >= my_geo_system->dim_count)
 			return SLURM_ERROR;
 	}
-}
 
-/* Attempt to place an allocation of a specific required geomemtry (reo_req)
- * into a bitmap of available resources (node_bitmap). The resource allocation
- * may contain NO gaps in any dimension. */
-static int _geo_test_all(bitstr_t *node_bitmap,
-			 bitstr_t **alloc_node_bitmap,
-			 ba_geo_table_t *geo_req, int *attempt_cnt,
-			 ba_geo_system_t *my_geo_system)
-{
-	int rc = SLURM_ERROR;
-	int i, j;
-	int start_offset[my_geo_system->dim_count];
-	int next_offset[my_geo_system->dim_count];
-	int tmp_offset[my_geo_system->dim_count];
-	bitstr_t *new_bitmap;
-
-	/* Start at location 00000 and move through all starting locations */
-	memset(start_offset, 0, sizeof(start_offset));
-
-	for (i = 0; i < my_geo_system->total_size; i++) {
-		(*attempt_cnt)++;
-		memset(tmp_offset, 0, sizeof(tmp_offset));
-		while (1) {
-			/* Compute location of next entry on the grid */
-			for (j = 0; j < my_geo_system->dim_count; j++) {
-				next_offset[j] = start_offset[j] +
-					tmp_offset[j];
-				next_offset[j] %= my_geo_system->dim_size[j];
-			}
-
-			/* Test that point on the grid */
-			if (ba_node_map_test(node_bitmap, next_offset,
-					     my_geo_system))
-				break;
-
-			/* Increment tmp_offset */
-			for (j = 0; j < my_geo_system->dim_count; j++) {
-				tmp_offset[j]++;
-				if (tmp_offset[j] < geo_req->geometry[j])
-					break;
-				tmp_offset[j] = 0;
-			}
-			if (j >= my_geo_system->dim_count) {
-				rc = SLURM_SUCCESS;
-				break;
-			}
-		}
-		if (rc == SLURM_SUCCESS)
-			break;
-
-		/* Move to next starting location */
-		for (j = 0; j < my_geo_system->dim_count; j++) {
-			if (geo_req->geometry[j] == my_geo_system->dim_size[j])
-				continue;	/* full axis used */
-			if (++start_offset[j] < my_geo_system->dim_size[j])
-				break;		/* sucess */
-			start_offset[j] = 0;	/* move to next dimension */
-		}
-		if (j >= my_geo_system->dim_count)
-			return rc;		/* end of starting locations */
-	}
-
-	new_bitmap = ba_node_map_alloc(my_geo_system);
-	memset(tmp_offset, 0, sizeof(tmp_offset));
-	while (1) {
-		/* Compute location of next entry on the grid */
-		for (j = 0; j < my_geo_system->dim_count; j++) {
-			next_offset[j] = start_offset[j] + tmp_offset[j];
-			if (next_offset[j] >= my_geo_system->dim_size[j])
-				next_offset[j] -= my_geo_system->dim_size[j];
-		}
-
-		ba_node_map_set(new_bitmap, next_offset, my_geo_system);
-
-		/* Increment tmp_offset */
-		for (j = 0; j < my_geo_system->dim_count; j++) {
-			tmp_offset[j]++;
-			if (tmp_offset[j] < geo_req->geometry[j])
-				break;
-			tmp_offset[j] = 0;
-		}
-		if (j >= my_geo_system->dim_count) {
-			rc = SLURM_SUCCESS;
-			break;
+	if (start_pos) {
+		for (i = 0; i < my_geo_system->dim_count; i++) {
+			start_pos[i] = geo_array[i]->
+				       start_coord[geo_array_inx[i]];
 		}
 	}
-	*alloc_node_bitmap = new_bitmap;
-
-	return rc;
+	if (scan_offset)
+		*scan_offset = current_offset + 1;
+	return SLURM_SUCCESS;
 }
 
 static void _internal_removable_set_mps(int level, bitstr_t *bitmap,
@@ -492,8 +485,11 @@ static void _internal_removable_set_mps(int level, bitstr_t *bitmap,
 			if (ba_debug_flags & DEBUG_FLAG_BG_ALGO_DEEP)
 				info("can't use %s", curr_mp->coord_str);
 			curr_mp->used |= BA_MP_USED_TEMP;
+			bit_set(ba_main_mp_bitmap, curr_mp->index);
 		} else {
 			curr_mp->used &= (~BA_MP_USED_TEMP);
+			if (curr_mp->used == BA_MP_USED_FALSE)
+				bit_clear(ba_main_mp_bitmap, curr_mp->index);
 		}
 	}
 }
@@ -522,6 +518,7 @@ static void _internal_reset_ba_system(int level, uint16_t *coords,
 	}
 	curr_mp = coord2ba_mp(coords);
 	ba_setup_mp(curr_mp, track_down_mps, false);
+	bit_clear(ba_main_mp_bitmap, curr_mp->index);
 }
 
 #if defined HAVE_BG_FILES
@@ -626,7 +623,7 @@ extern void ba_init(node_info_msg_t *node_info_ptr, bool sanity_check)
 	slurm_conf_node_t **ptr_array;
 	int coords[HIGHEST_DIMENSIONS];
 	char *p = '\0';
-	int num_cpus = 0;
+	int num_mps = 0;
 	int real_dims[HIGHEST_DIMENSIONS];
 	char dim_str[HIGHEST_DIMENSIONS+1];
 
@@ -651,7 +648,6 @@ extern void ba_init(node_info_msg_t *node_info_ptr, bool sanity_check)
 				= node_info_ptr->record_count;
 			for (i=1; i<cluster_dims; i++)
 				real_dims[i] = DIM_SIZE[i] = 1;
-			num_cpus = node_info_ptr->record_count;
 		}
 		goto setup_done;
 	} else if (working_cluster_rec && working_cluster_rec->dim_size) {
@@ -695,7 +691,7 @@ extern void ba_init(node_info_msg_t *node_info_ptr, bool sanity_check)
 			/* this will probably be reset below */
 			real_dims[j] = DIM_SIZE[j];
 		}
-		num_cpus = node_info_ptr->record_count;
+		num_mps = node_info_ptr->record_count;
 	}
 node_info_error:
 	for (j=0; j<cluster_dims; j++)
@@ -749,12 +745,14 @@ node_info_error:
 
 		if (j >= cluster_dims)
 			info("are you sure you only have 1 midplane? %s",
-			     ptr_array[i]->nodenames);
+			     ptr_array[0]->nodenames);
 
+		num_mps = 1;
 		for (j=0; j<cluster_dims; j++) {
 			DIM_SIZE[j]++;
 			/* this will probably be reset below */
 			real_dims[j] = DIM_SIZE[j];
+			num_mps *= DIM_SIZE[j];
 		}
 	}
 
@@ -795,14 +793,16 @@ setup_done:
 		debug("We are using %s of the system.", dim_str);
 	}
 
-	if (!num_cpus) {
-		num_cpus = 1;
-		for(i=0; i<cluster_dims; i++)
-			num_cpus *= DIM_SIZE[i];
-	}
-
 	if (bg_recover != NOT_FROM_CONTROLLER) {
-		ba_create_system(num_cpus, real_dims);
+		if (!num_mps) {
+			num_mps = 1;
+			for (i=0; i<cluster_dims; i++)
+				num_mps *= DIM_SIZE[i];
+		}
+
+		ba_main_mp_bitmap = bit_alloc(num_mps);
+
+		ba_create_system();
 		bridge_setup_system();
 
 		_init_grid(node_info_ptr);
@@ -820,15 +820,18 @@ setup_done:
  */
 extern void ba_fini(void)
 {
-	if (!ba_initialized){
+	if (!ba_initialized)
 		return;
-	}
 
 	if (bg_recover != NOT_FROM_CONTROLLER) {
 		bridge_fini();
 		ba_destroy_system();
 		_free_geo_bitmap_arrays();
 	}
+
+	if (ba_main_mp_bitmap)
+		FREE_NULL_BITMAP(ba_main_mp_bitmap);
+
 	ba_initialized = false;
 
 //	debug3("pa system destroyed");
@@ -1396,20 +1399,31 @@ extern char *ba_node_map_ranged_hostlist(bitstr_t *node_bitmap,
  * it using all possible starting locations.
  *
  * IN node_bitmap - bitmap representing current system state, bits are set
- *                  for currently allocated nodes
+ *		for currently allocated nodes
  * OUT alloc_node_bitmap - bitmap representing where to place the allocation
- *                         set only if RET == SLURM_SUCCESS
+ *		set only if RET == SLURM_SUCCESS
  * IN geo_req - geometry required for the new allocation
  * OUT attempt_cnt - number of job placements attempted
  * IN my_geo_system - system geometry specification
- * IN gaps_ok - if set, then allow gaps in any dimension, any gap applies to
- *		all elements at that position in that dimension
+ * IN deny_pass - if set, then do not allow gaps in a specific dimension, any
+ *		gap applies to all elements at that position in that dimension,
+ *		one value per dimension, default value prevents gaps in any
+ *		dimension
+ * IN/OUT start_pos - input is pointer to array having same size as
+ *		dimension count or NULL. Set to starting coordinates of
+ *		the allocation in each dimension.
+ * IN/OUT scan_offset - Location in search table from which to continue
+ *		searching for resources. Initial value should be zero. If the
+ *		allocation selected by the algorithm is not acceptable, call
+ *		the function repeatedly with the previous output value of
+ *		scan_offset
  * RET - SLURM_SUCCESS if allocation can be made, otherwise SLURM_ERROR
  */
 extern int ba_geo_test_all(bitstr_t *node_bitmap,
 			   bitstr_t **alloc_node_bitmap,
 			   ba_geo_table_t *geo_req, int *attempt_cnt,
-			   ba_geo_system_t *my_geo_system, bool gaps_ok)
+			   ba_geo_system_t *my_geo_system, uint16_t *deny_pass,
+			   uint16_t *start_pos, int *scan_offset)
 {
 	int rc;
 
@@ -1419,13 +1433,9 @@ extern int ba_geo_test_all(bitstr_t *node_bitmap,
 	xassert(attempt_cnt);
 
 	*attempt_cnt = 0;
-	if (gaps_ok) {
-		rc = _geo_test_maps(node_bitmap, alloc_node_bitmap,
-				    geo_req, attempt_cnt, my_geo_system);
-	} else {
-		rc = _geo_test_all(node_bitmap, alloc_node_bitmap,
-				   geo_req, attempt_cnt, my_geo_system);
-	}
+	rc = _geo_test_maps(node_bitmap, alloc_node_bitmap, geo_req,
+			    attempt_cnt, my_geo_system, deny_pass,
+			    start_pos, scan_offset);
 
 	return rc;
 }

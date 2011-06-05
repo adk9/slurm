@@ -1037,17 +1037,14 @@ static void _preempt_jobs(List preemptee_job_list, int *error_code)
 	while ((job_ptr = (struct job_record *) list_next(iter))) {
 		mode = slurm_job_preempt_mode(job_ptr);
 		if (mode == PREEMPT_MODE_CANCEL) {
-			rc = slurm_job_check_grace(job_ptr);
-			if (rc == SLURM_SUCCESS) {
-				job_cnt++;
-				break;
-			}
+			job_cnt++;
+			if (slurm_job_check_grace(job_ptr) == SLURM_SUCCESS)
+				continue;
 			rc = job_signal(job_ptr->job_id, SIGKILL, 0, 0, true);
 			if (rc == SLURM_SUCCESS) {
 				info("preempted job %u has been killed",
 				     job_ptr->job_id);
 			}
-			job_cnt++;
 		} else if (mode == PREEMPT_MODE_CHECKPOINT) {
 			checkpoint_msg_t ckpt_msg;
 			memset(&ckpt_msg, 0, sizeof(checkpoint_msg_t));
@@ -2116,10 +2113,10 @@ extern void re_kill_job(struct job_record *job_ptr)
 				(node_ptr->comp_job_cnt)--;
 			if ((job_ptr->node_cnt > 0) && 
 			    ((--job_ptr->node_cnt) == 0)) {
-				last_node_update = time(NULL);
 				job_ptr->job_state &= (~JOB_COMPLETING);
 				delete_step_records(job_ptr);
 				slurm_sched_schedule();
+				last_node_update = time(NULL);
 			}
 		} else if (!IS_NODE_NO_RESPOND(node_ptr)) {
 			(void)hostlist_push_host(kill_hostlist, node_ptr->name);

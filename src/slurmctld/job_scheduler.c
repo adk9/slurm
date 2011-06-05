@@ -50,6 +50,7 @@
 
 #include "src/common/assoc_mgr.h"
 #include "src/common/env.h"
+#include "src/common/gres.h"
 #include "src/common/list.h"
 #include "src/common/macros.h"
 #include "src/common/node_select.h"
@@ -1082,7 +1083,7 @@ extern int update_job_dependency(struct job_record *job_ptr, char *new_depend)
 			dep_job_ptr = find_job_record(job_id);
 			if ((depend_type == SLURM_DEPEND_EXPAND) &&
 			    ((expand_cnt++ > 0) || (dep_job_ptr == NULL) ||
-			     (IS_JOB_FINISHED(dep_job_ptr))              ||
+			     (!IS_JOB_RUNNING(dep_job_ptr))              ||
 			     (dep_job_ptr->qos_id != job_ptr->qos_id)    ||
 			     (dep_job_ptr->part_ptr == NULL)             ||
 			     (job_ptr->part_ptr     == NULL)             ||
@@ -1092,8 +1093,17 @@ extern int update_job_dependency(struct job_record *job_ptr, char *new_depend)
 				rc = ESLURM_DEPENDENCY;
 				break;
 			}
-			if (depend_type == SLURM_DEPEND_EXPAND)
+			if (depend_type == SLURM_DEPEND_EXPAND) {
 				job_ptr->details->expanding_jobid = job_id;
+				/* GRES configuration of this job must match
+				 * the job being expanded */
+				xfree(job_ptr->gres);
+				job_ptr->gres = xstrdup(dep_job_ptr->gres);
+				if (job_ptr->gres_list)
+					list_destroy(job_ptr->gres_list);
+				gres_plugin_job_state_validate(job_ptr->gres,
+						&job_ptr->gres_list);
+			}
 			if (dep_job_ptr) {	/* job still active */
 				dep_ptr = xmalloc(sizeof(struct depend_spec));
 				dep_ptr->depend_type = depend_type;
@@ -1171,6 +1181,59 @@ static bool _scan_depend(List dependency_list, uint32_t job_id)
 static void _pre_list_del(void *x)
 {
 	xfree(x);
+}
+
+/* If there are higher priority queued jobs in this job's partition, then
+ * delay the job's expected initiation time as needed to run those jobs.
+ * NOTE: This is only a rough estimate of the job's start time as it ignores
+ * job dependencies, feature requirements, specific node requirements, etc. */
+static void _delayed_job_start_time(struct job_record *job_ptr)
+{
+	uint32_t part_node_cnt, part_cpu_cnt, part_cpus_per_node;
+	uint32_t job_size_cpus, job_size_nodes, job_time;
+	uint64_t cume_space_time = 0;
+	struct job_record *job_q_ptr;
+	ListIterator job_iterator;
+
+	if (job_ptr->part_ptr == NULL)
+		return;
+	part_node_cnt = job_ptr->part_ptr->total_nodes;
+	part_cpu_cnt  = job_ptr->part_ptr->total_cpus;
+	if (part_node_cnt > part_cpu_cnt)
+		part_cpus_per_node = part_node_cnt / part_cpu_cnt;
+	else
+		part_cpus_per_node = 1;
+
+	job_iterator = list_iterator_create(job_list);
+	if (job_iterator == NULL)
+		fatal("list_iterator_create memory allocation failure");
+	while ((job_q_ptr = (struct job_record *) list_next(job_iterator))) {
+		if (!IS_JOB_PENDING(job_q_ptr) || !job_q_ptr->details ||
+		    (job_q_ptr->part_ptr != job_ptr->part_ptr) ||
+		    (job_q_ptr->priority < job_ptr->priority))
+			continue;
+		if (job_q_ptr->details->min_nodes == NO_VAL)
+			job_size_nodes = 1;
+		else
+			job_size_nodes = job_q_ptr->details->min_nodes;
+		if (job_q_ptr->details->min_cpus == NO_VAL)
+			job_size_cpus = 1;
+		else
+			job_size_cpus = job_q_ptr->details->min_nodes;
+		job_size_cpus = MAX(job_size_cpus,
+				    (job_size_nodes * part_cpus_per_node));
+		if (job_ptr->time_limit == NO_VAL)
+			job_time = job_q_ptr->part_ptr->max_time;
+		else
+			job_time = job_q_ptr->time_limit;
+		cume_space_time += job_size_cpus * job_time;
+	}
+	list_iterator_destroy(job_iterator);
+	cume_space_time /= part_cpu_cnt;/* Factor out size */
+	cume_space_time *= 60;		/* Minutes to seconds */
+	debug2("Increasing estimated start of job %u by %"PRIu64" secs",
+	       job_ptr->job_id, cume_space_time);
+	job_ptr->start_time += cume_space_time;
 }
 
 /* Determine if a pending job will run using only the specified nodes
@@ -1287,6 +1350,7 @@ extern int job_start_data(job_desc_msg_t *job_desc_msg,
 #else
 		resp_data->proc_cnt = job_ptr->total_cpus;
 #endif
+		_delayed_job_start_time(job_ptr);
 		resp_data->start_time = MAX(job_ptr->start_time,
 					    orig_start_time);
 		resp_data->start_time = MAX(resp_data->start_time, start_res);

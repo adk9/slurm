@@ -46,7 +46,6 @@ generated_html = \
 	authplugins.html \
 	big_sys.html \
 	bluegene.html \
-	cfp.html \
 	checkpoint_blcr.html \
 	checkpoint_plugins.html \
 	cons_res.html \
@@ -60,12 +59,14 @@ generated_html = \
 	faq.html \
 	gang_scheduling.html \
 	gres.html \
+	gres_design.html \
 	gres_plugins.html \
 	help.html \
 	high_throughput.html \
 	ibm.html \
 	jobacct_gatherplugins.html \
 	job_exit_code.html \
+	job_launch.html \
 	job_submit_plugins.html \
 	jobcompplugins.html \
 	mail.html \
@@ -92,12 +93,15 @@ generated_html = \
 	qos.html \
 	quickstart_admin.html \
 	quickstart.html \
-	registration.html \
 	reservations.html \
 	resource_limits.html \
 	schedplugins.html \
+	select_design.html \
 	selectplugins.html \
 	slurm.html \
+	slurm_ug_agenda.html \
+	slurm_ug_cfp.html \
+	slurm_ug_registration.html \
 	sun_const.html \
 	switchplugins.html \
 	taskplugins.html \

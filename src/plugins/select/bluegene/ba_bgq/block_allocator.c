@@ -65,7 +65,6 @@ typedef struct {
  *  on */
 ba_mp_t ****ba_main_grid = NULL;
 
-static int REAL_DIM_SIZE[HIGHEST_DIMENSIONS] = {0,0,0,0};
 static ba_geo_system_t *ba_main_geo_system = NULL;
 static ba_geo_system_t *ba_mp_geo_system = NULL;
 static uint16_t *deny_pass = NULL;
@@ -116,7 +115,7 @@ static bool _mp_used(ba_mp_t* ba_mp, int dim);
 /** */
 static bool _mp_out_used(ba_mp_t* ba_mp, int dim);
 
-extern void ba_create_system(int num_cpus, int *real_dims)
+extern void ba_create_system()
 {
 	int a,x,y,z, i = 0, dim;
 	uint16_t coords[SYSTEM_DIMENSIONS];
@@ -124,8 +123,6 @@ extern void ba_create_system(int num_cpus, int *real_dims)
 
 	if (ba_main_grid)
 		ba_destroy_system();
-
-	memcpy(REAL_DIM_SIZE, real_dims, sizeof(REAL_DIM_SIZE));
 
 	ba_main_grid = (ba_mp_t****)
 		xmalloc(sizeof(ba_mp_t***) * DIM_SIZE[A]);
@@ -170,8 +167,10 @@ extern void ba_create_system(int num_cpus, int *real_dims)
 	ba_main_geo_system->dim_count = SYSTEM_DIMENSIONS;
 	ba_main_geo_system->dim_size =
 		xmalloc(sizeof(int) * ba_main_geo_system->dim_count);
+
 	for (dim = 0; dim < SYSTEM_DIMENSIONS; dim++)
 		ba_main_geo_system->dim_size[dim] = DIM_SIZE[dim];
+
 	ba_create_geo_table(ba_main_geo_system);
 	//ba_print_geo_table(ba_main_geo_system);
 
@@ -548,8 +547,11 @@ extern int remove_block(List mps, bool is_small)
 			[curr_ba_mp->coord[X]]
 			[curr_ba_mp->coord[Y]]
 			[curr_ba_mp->coord[Z]];
-		if (curr_ba_mp->used)
+		if (curr_ba_mp->used) {
 			ba_mp->used &= (~BA_MP_USED_TRUE);
+			if (ba_mp->used == BA_MP_USED_FALSE)
+				bit_clear(ba_main_mp_bitmap, ba_mp->index);
+		}
 		ba_mp->used &= (~BA_MP_USED_ALTERED_PASS);
 
 		/* Small blocks don't use wires, and only have 1 mp,
@@ -665,8 +667,12 @@ extern int check_and_set_mp_list(List mps)
 			}
 		}
 
-		if (ba_mp->used)
+		if (ba_mp->used) {
 			curr_ba_mp->used = ba_mp->used;
+			xassert(!bit_test(ba_main_mp_bitmap, ba_mp->index));
+			bit_set(ba_main_mp_bitmap, ba_mp->index);
+		}
+
 		if (ba_debug_flags & DEBUG_FLAG_BG_ALGO_DEEP)
 			info("check_and_set_mp_list: "
 			     "%s is used ?= %d %d",
@@ -974,16 +980,44 @@ extern ba_mp_t *ba_pick_sub_block_cnodes(
 				for (ionode_num = start;
 				     ionode_num <= end;
 				     ionode_num++) {
+					int nc_num, nc_start, nc_end;
 					if (!bit_test(bg_record->ionode_bitmap,
 						      ionode_num))
 						continue;
-					ba_node_map_set_range(
-						ba_mp->cnode_bitmap,
-						g_nc_coords[ionode_num].start,
-						g_nc_coords[ionode_num].end,
-						ba_mp_geo_system);
+
+					nc_start = ionode_num
+						* (int)bg_conf->nc_ratio;
+					nc_end = nc_start
+						+ (int)bg_conf->nc_ratio;
+					for (nc_num = nc_start;
+					     nc_num < nc_end;
+					     nc_num++)
+						ba_node_map_set_range(
+							ba_mp->cnode_bitmap,
+							g_nc_coords[nc_num].
+							start,
+							g_nc_coords[nc_num].
+							end,
+							ba_mp_geo_system);
 				}
+				if (ba_debug_flags & DEBUG_FLAG_BG_ALGO_DEEP)
+					tmp_char = ba_node_map_ranged_hostlist(
+						ba_mp->cnode_bitmap,
+						ba_mp_geo_system);
+
 				bit_not(ba_mp->cnode_bitmap);
+
+				if (ba_debug_flags & DEBUG_FLAG_BG_ALGO_DEEP) {
+					tmp_char2 = ba_node_map_ranged_hostlist(
+						ba_mp->cnode_bitmap,
+						ba_mp_geo_system);
+					info("ba_pick_sub_block_cnodes: "
+					     "can only use %s cnodes of "
+					     "this midplane leaving %s "
+					     "unusable", tmp_char, tmp_char2);
+					xfree(tmp_char);
+					xfree(tmp_char2);
+				}
 			}
 		}
 		if (bit_clear_count(ba_mp->cnode_bitmap) < *node_count) {
@@ -996,13 +1030,28 @@ extern ba_mp_t *ba_pick_sub_block_cnodes(
 		}
 
 		while (geo_table) {
+			int scan_offset = 0;
+			uint16_t start_loc[ba_mp_geo_system->dim_count];
+
 			if (ba_geo_test_all(ba_mp->cnode_bitmap,
 					    &jobinfo->units_used,
 					    geo_table, &cnt,
-					    ba_mp_geo_system, 0)
+					    ba_mp_geo_system, NULL,
+					    start_loc, &scan_offset)
 			    != SLURM_SUCCESS) {
 				geo_table = geo_table->next_ptr;
 				continue;
+			}
+
+			if (ba_debug_flags & DEBUG_FLAG_BG_ALGO_DEEP) {
+				info("scan_offset=%d", scan_offset);
+				for (dim = 0;
+				     dim < ba_mp_geo_system->dim_count;
+				     dim++) {
+					info("start_loc[%d]=%u geometry[%d]=%u",
+					     dim, start_loc[dim], dim,
+					     geo_table->geometry[dim]);
+				}
 			}
 
 			bit_or(ba_mp->cnode_bitmap, jobinfo->units_used);
@@ -1023,9 +1072,11 @@ extern ba_mp_t *ba_pick_sub_block_cnodes(
 			}
 			jobinfo->ionode_str = ba_node_map_ranged_hostlist(
 				jobinfo->units_used, ba_mp_geo_system);
-			for (dim = 0; dim < jobinfo->dim_cnt; dim++)
+			for (dim = 0; dim < jobinfo->dim_cnt; dim++) {
 				jobinfo->geometry[dim] =
 					geo_table->geometry[dim];
+				jobinfo->start_loc[dim] = start_loc[dim];
+			}
 			break;
 		}
 
@@ -1037,6 +1088,7 @@ extern ba_mp_t *ba_pick_sub_block_cnodes(
 		geo_table = ba_mp_geo_system->geo_table_ptr[*node_count];
 	}
 	list_iterator_destroy(itr);
+
 	return ba_mp;
 }
 
@@ -1150,23 +1202,30 @@ extern char *ba_set_ionode_str(bitstr_t *ionode_bitmap)
 		for (ionode_num = bit_ffs(ionode_bitmap);
 		     ionode_num <= bit_fls(ionode_bitmap);
 		     ionode_num++) {
+			int nc_num, nc_start, nc_end;
 			if (!bit_test(ionode_bitmap, ionode_num))
 				continue;
-			if (_ba_set_ionode_str_internal(
-				0, coords,
-				g_nc_coords[ionode_num].start,
-				g_nc_coords[ionode_num].end,
-				hl)
-			    == -1) {
-				hostlist_destroy(hl);
-				hl = NULL;
-				break;
+
+			nc_start = ionode_num * (int)bg_conf->nc_ratio;
+			nc_end = nc_start + (int)bg_conf->nc_ratio;
+
+			for (nc_num = nc_start; nc_num < nc_end; nc_num++) {
+				if (_ba_set_ionode_str_internal(
+					    0, coords,
+					    g_nc_coords[nc_num].start,
+					    g_nc_coords[nc_num].end,
+					    hl)
+				    == -1) {
+					hostlist_destroy(hl);
+					hl = NULL;
+					break;
+				}
 			}
 		}
 		if (hl) {
 			ionode_str = hostlist_ranged_string_xmalloc_dims(
 				hl, 5, 0);
-			info("iostring is %s", ionode_str);
+			//info("iostring is %s", ionode_str);
 			hostlist_destroy(hl);
 			hl = NULL;
 		}

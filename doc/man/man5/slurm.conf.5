@@ -210,7 +210,10 @@ Supported values presently include:
 for AIX systems only
 .TP
 \fBcheckpoint/blcr\fR
-Berkeley Lab Checkpoint Restart (BLCR)
+Berkeley Lab Checkpoint Restart (BLCR).
+NOTE: If a file is found at sbin/scch (relative to the SLURM installation
+location), it will be executed upon completion of the checkpoint. This can
+be a script used for managing the checkpoint files.
 .TP
 \fBcheckpoint/none\fR
 no checkpoint support (default)
@@ -702,9 +705,10 @@ No job submission plugins are used by default.
 .TP
 \fBKillOnBadExit\fR
 If set to 1, the job will be terminated immediately when one of the
-processes is crashed or aborted. With default value of 0, if one of
+processes is crashed or aborted. With the default value of 0, if one of
 the processes is crashed or aborted the other processes will continue
-to run.
+to run. The user can override this configuration parameter by using srun's
+\fB\-K\fR, \fB\-\-kill\-on\-bad\-exit\fR.
 
 .TP
 \fBKillWait\fR
@@ -749,8 +753,9 @@ The maximum job id to be used for jobs submitted to SLURM without a
 specific requested value. Job id values generated will incremented by 1
 for each subsequent job. This may be used to provide a meta\-scheduler
 with a job id space which is disjoint from the interactive jobs.
+Once \fBMaxJobId\fR is reached, the next job will be assigned \fBFirstJobId\fR.
 The default value is 4294901760 (0xffff0000).
-Also see \fBFirstJobId\fR
+Also see \fBFirstJobId\fR.
 
 .TP
 \fBMaxMemPerCPU\fR
@@ -1305,7 +1310,7 @@ and resumes communications).
 A DOWN node will become available for use upon registration with a
 valid configuration only if it was set DOWN due to being non\-responsive.
 If the node was set DOWN for any other reason (low memory, prolog failure,
-epilog failure, silently rebooting, etc.), its state will not automatically
+epilog failure, unexpected reboot, etc.), its state will not automatically
 be changed.
 .TP
 \fB2\fR
