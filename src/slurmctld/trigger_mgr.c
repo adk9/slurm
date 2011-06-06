@@ -481,6 +481,7 @@ extern void trigger_node_down(struct node_record *node_ptr)
 		trigger_down_nodes_bitmap = bit_alloc(node_record_count);
 	bit_set(trigger_down_nodes_bitmap, inx);
 	slurm_mutex_unlock(&trigger_mutex);
+	notify_log(MON_NODES_UNREACHABLE, (void *)node_ptr);
 }
 
 extern void trigger_node_drained(struct node_record *node_ptr)
@@ -492,6 +493,7 @@ extern void trigger_node_drained(struct node_record *node_ptr)
 		trigger_drained_nodes_bitmap = bit_alloc(node_record_count);
 	bit_set(trigger_drained_nodes_bitmap, inx);
 	slurm_mutex_unlock(&trigger_mutex);
+	notify_log(RM_NODES_REMOVED, (void *)node_ptr);
 }
 
 extern void trigger_node_failing(struct node_record *node_ptr)
@@ -515,6 +517,7 @@ extern void trigger_node_up(struct node_record *node_ptr)
 		trigger_up_nodes_bitmap = bit_alloc(node_record_count);
 	bit_set(trigger_up_nodes_bitmap, inx);
 	slurm_mutex_unlock(&trigger_mutex);
+	notify_log(MON_NODES_ALIVE, (void *)node_ptr);
 }
 
 extern void trigger_reconfig(void)

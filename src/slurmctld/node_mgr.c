@@ -2565,7 +2565,6 @@ static void _make_node_down(struct node_record *node_ptr, time_t event_time)
 	clusteracct_storage_g_node_down(acct_db_conn,
 					node_ptr, event_time, NULL,
 					node_ptr->reason_uid);
-	notify_log(NODE_STATE_DOWN, (void *) node_ptr);
 }
 
 /*
