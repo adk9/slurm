@@ -56,6 +56,13 @@
 
 #include "src/slurmctld/slurmctld.h"
 
+enum ftb_states {
+	MON_NODES_UNREACHABLE,
+	MON_NODES_ALIVE,
+	RM_NODES_ADDED,
+	RM_NODES_REMOVED
+};
+
 /* global notifier context */
 typedef struct slurm_notify_context *slurm_notify_context_t;
 

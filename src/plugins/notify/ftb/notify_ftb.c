@@ -56,7 +56,6 @@
 #include "slurm/slurm.h"
 #include "slurm/slurm_errno.h"
 #include "src/common/slurm_notify.h"
-#include "src/slurmctld/slurmctld.h"
 
 #include <ftb.h>
 
@@ -95,9 +94,8 @@ const uint32_t plugin_version	= 100;
 const FTB_event_info_t slurm_ftb_events[] = {
 	{"MON_NODES_UNREACHABLE","ERROR"},
 	{"MON_NODES_ALIVE", 	 "INFO"},
-	{"MON_NODES_IDLE",       "INFO"},
-	{"RM_NODES_REMOVED",     "INFO"},
-	{"MON_NODES_POWER_SAVE", "INFO"},
+	{"RM_NODES_ADDED",       "INFO"},
+	{"RM_NODES_REMOVED",     "INFO"}
 };
 
 struct slurm_ftb_event_t {
@@ -140,22 +138,17 @@ int get_ftb_node_event (uint16_t state, void *arg, struct slurm_ftb_event_t *eve
 
 	node = (struct node_record *) arg;
 	switch(state) {
-	case NODE_STATE_DOWN:
-	case NODE_STATE_FAIL:
+	case MON_NODES_UNREACHABLE:
 		event->name = slurm_ftb_events[0].event_name;
 		break;
-	case NODE_STATE_POWER_UP:
-	case NODE_RESUME:
+	case MON_NODES_ALIVE:
 		event->name = slurm_ftb_events[1].event_name;
 		break;
-	case NODE_STATE_IDLE:
+	case RM_NODES_ADDED:
 		event->name = slurm_ftb_events[2].event_name;
 		break;
-	case NODE_STATE_ALLOCATED:
+	case RM_NODES_REMOVED:
 		event->name = slurm_ftb_events[3].event_name;
-		break;
-	case NODE_STATE_POWER_SAVE:
-		event->name = slurm_ftb_events[4].event_name;
 		break;
 	default:
 		return -1;
