@@ -29,6 +29,7 @@ documents those changes that are of interest to users and admins.
  -- Add scancel support for --clusters option.
  -- Note that scontrol and sprio can only support a single cluster at one time.
  -- Add support to salloc for a new environment variable SALLOC_KILL_CMD.
+ -- Add scontrol ability to increment or decrement a job or step time limit.
 
 * Changes in SLURM 2.3.0.pre5
 =============================
@@ -209,6 +210,7 @@ documents those changes that are of interest to users and admins.
     Gerrit Renker (CSCS).
  -- Fixed Regression from 2.2.4 in accounting where an inherited limit
     would not be set correctly in the added child association.
+ -- Fixed issue with accounting when asking for jobs with a hostlist.
 
 * Changes in SLURM 2.2.6
 ========================
