@@ -327,7 +327,7 @@ in some failed state (non-zero exit code, node failure, timed out, etc).
 .TP
 \fBafterok:job_id[:jobid...]\fR
 This job can begin execution after the specified jobs have successfully
-executed (ran to completion with non-zero exit code).
+executed (ran to completion with an exit code of zero).
 .TP
 \fBexpand:job_id\fR
 Resources allocated to this job should be used to expand the specified job.
@@ -590,7 +590,7 @@ https://computing.llnl.gov/linux/slurm/dist_plane.html.
 .B arbitrary
 The arbitrary method of distribution will allocate processes in\-order
 as listed in file designated by the environment variable
-SLURM_HOSTFILE.  If this variable is listed it will over ride any
+SLURM_HOSTFILE.  If this variable is listed it will override any
 other method specified.  If not set the method will default to block.
 Inside the hostfile must contain at minimum the number of hosts
 requested and be one per line or comma separated.  If specifying a

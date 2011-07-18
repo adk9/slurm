@@ -1,4 +1,4 @@
-.TH "slurm.conf" "5" "March 2011" "slurm.conf 2.3" "Slurm configuration file"
+.TH "slurm.conf" "5" "June 2011" "slurm.conf 2.3" "Slurm configuration file"
 
 .SH "NAME"
 slurm.conf \- Slurm configuration file
@@ -698,8 +698,8 @@ These are intended to be site\-specific plugins which can be used to set
 default job parameters and/or logging events.
 Sample plugins available in the distribution include "cnode", "defaults",
 "logging", "lua", and "partition".
-See the SLURM code in "src/plugins/job_submit" and modify the code to satisfy
-your needs.
+For examples of use, see the SLURM code in "src/plugins/job_submit" and
+"contribs/lua/job_submit*.lua" then modify the code to satisfy your needs.
 No job submission plugins are used by default.
 
 .TP
@@ -1810,29 +1810,30 @@ See \fBTaskProlog\fR for execution order details.
 \fBTaskPlugin\fR
 Identifies the type of task launch plugin, typically used to provide
 resource management within a node (e.g. pinning tasks to specific
-processors).
-Acceptable values include :
+processors). More than one task plugin can be specified in a comma separated
+list. The prefix of "task/" is optional. Acceptable values include:
 .RS
-.TP 20
-\fBtask/none\fR
-for systems requiring no special handling
-.TP
-\fBtask/cgroup\fR
-to enable resource containment using linux control cgroups.
-NOTE: see "man cgroup.conf" for configuration details
-.TP
+.TP 15
 \fBtask/affinity\fR
-"task/affinity" to enable the \-\-cpu_bind and/or \-\-mem_bind
-srun options.
-
-.RE
-The default value is "task/none".
+enables resource containment using CPUSETs.
+This enables the \-\-cpu_bind and/or \-\-mem_bind srun options.
 If you use "task/affinity" and encounter problems, it may be due to
 the variety of system calls used to implement task affinity on
 different operating systems.
-If that is the case, you may want to use Portable Linux
+If that is the case, you may want to install Portable Linux
 Process Affinity (PLPA, see http://www.open-mpi.org/software/plpa),
 which is supported by SLURM.
+.TP
+\fBtask/cgroup\fR
+enables resource containment using Linux control cgroups.
+This enables the \-\-cpu_bind and/or \-\-mem_bind srun options.
+NOTE: see "man cgroup.conf" for configuration details.
+.TP
+\fBtask/none\fR
+for systems requiring no special handling of user tasks.
+Lacks support for the \-\-cpu_bind and/or \-\-mem_bind srun options.
+The default value is "task/none".
+.RE
 
 .TP
 \fBTaskPluginParam\fR
@@ -2207,9 +2208,9 @@ Also see \fBGres\fR.
 A comma delimited list of generic resources specifications for a node.
 Each resource specification consists of a name followed by an optional
 colon with a numeric value (default value is one)
-(e.g. "Gres=bandwidth:10000,gpus:2").
+(e.g. "Gres=bandwidth:10000,gpu:2").
 A suffix of "K", "M" or "G" may be used to mulitply the number by 1024,
-1048576 or 1073741824 respectively (e.g. "Gres=bandwidth:4G,gpus:4")..
+1048576 or 1073741824 respectively (e.g. "Gres=bandwidth:4G,gpu:4")..
 By default a node has no generic resources.
 Also see \fBFeature\fR.
 
@@ -2463,7 +2464,7 @@ in the configuration file with multiple entries where "PartitionName=DEFAULT".
 The "PartitionName=" specification must be placed on every line
 describing the configuration of partitions.
 If a partition that is in use is deleted from the configuration and slurm
-is restarted or reconfigured (scontrol reconfgure), jobs using the partition
+is restarted or reconfigured (scontrol reconfigure), jobs using the partition
 are canceled.
 \fBNOTE:\fR Put all parameters for each partition on a single line.
 Each line of partition configuration information should
@@ -2740,7 +2741,7 @@ to all of the programs.
 .TP
 \fBBASIL_RESERVATION_ID\fR
 Basil reservation ID.
-Available on Cray XT systems only.
+Available on Cray XT/XE systems only.
 .TP
 \fBMPIRUN_PARTITION\fR
 BlueGene partition name.
@@ -2811,7 +2812,7 @@ The \fBTopologyPlugin\fR parameter controls which plugin is used to
 collect network topology information.
 The only values presently supported are
 "topology/3d_torus" (default for IBM BlueGene, Sun Constellation and
-Cray XT systems, performs best\-fit logic over three\-dimensional topology),
+Cray XT/XE systems, performs best\-fit logic over three\-dimensional topology),
 "topology/none" (default for other systems,
 best\-fit logic over one\-dimensional topology),
 "topology/tree" (determine the network topology based

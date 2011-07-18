@@ -1,4 +1,4 @@
-.TH SCONTROL "1" "May 2011" "scontrol 2.3" "Slurm components"
+.TH SCONTROL "1" "June 2011" "scontrol 2.3" "Slurm components"
 
 .SH "NAME"
 scontrol \- Used view and modify Slurm configuration and state.
@@ -443,7 +443,7 @@ in some failed state (non-zero exit code, node failure, timed out, etc).
 .TP
 \fBafterok:job_id[:jobid...]\fR
 This job can begin execution after the specified jobs have successfully
-executed (ran to completion with non-zero exit code).
+executed (ran to completion with an exit code of zero).
 .TP
 \fBsingleton\fR
 This job can begin execution after any previously launched jobs
@@ -641,6 +641,12 @@ hours:minutes:seconds, days\-hours, days\-hours:minutes or
 days\-hours:minutes:seconds.
 Time resolution is one minute and second values are rounded up to
 the next minute.
+If changing the time limit of a job, either specify a new time limit value or
+preceed the time with a "+" or "\-" to increment or decrement the current
+time limit (e.g. "TimeLimit=+30"). In order to increment or decrement the
+current time limit, the \fIJobId\fP specification must preceed the
+\fITimeLimit\fP specification.
+
 .TP
 \fIWCKey\fP=<key>
 Set the job's workload characterization key to the specified value.
@@ -722,6 +728,11 @@ hours:minutes:seconds, days\-hours, days\-hours:minutes or
 days\-hours:minutes:seconds.
 Time resolution is one minute and second values are rounded up to
 the next minute.
+If changing the time limit of a step, either specify a new time limit value or
+preceed the time with a "+" or "\-" to increment or decrement the current
+time limit (e.g. "TimeLimit=+30"). In order to increment or decrement the
+current time limit, the \fIStepId\fP specification must preceed the
+\fITimeLimit\fP specification.
 
 .TP
 \fBSPECIFICATIONS FOR UPDATE COMMAND, NODES\fR
@@ -1143,6 +1154,18 @@ Same as \fB\-\-clusters\fR
 .TP
 \fBSLURM_CONF\fR
 The location of the SLURM configuration file.
+.TP
+\fBSLURM_TIME_FORMAT\fR
+Specify the format used to report time stamps. A value of \fIstandard\fR, the
+default value, generates output in the form "year-month-dateThour:minute:second".
+A value of \fIrelative\fR returns only "hour:minute:second" if the current day.
+For other dates in the current year it prints the "hour:minute" preceeded by
+"Tomorr" (tomorrow), "Ystday" (yesterday), the name of the day for the coming
+week (e.g. "Mon", "Tue", etc.), otherwise the date (e.g. "25 Apr").
+For other years it returns a date month and year without a time (e.g.
+"6 Jun 2012").
+Another suggested value is "%a %T" for a day of week and time stamp (e.g.
+"Mon 12:34:56"). All of the time stamps use a 24 hour format.
 
 .SH "AUTHORIZATION"
 

@@ -113,10 +113,13 @@ enum basil_element {
 	BT_RESVDNODEARRAY,	/* Basil 3.1 RESERVE Response */
 	BT_RESVDNODE,		/* Basil 3.1 RESERVE Response */
 #define BT_3_1_MAX		(BT_RESVDNODE + 1)	/* End of Basil 3.1 */
-	/* FIXME: the Basil 4.0 interface is not yet fully released */
-#define BT_4_0_MAX              BT_3_1_MAX              /* End of Basil 4.0 */
+
+	BT_ACCELARRAY,		/* Basil 4.0 Inventory/Node */
+	BT_ACCEL,		/* Basil 4.0 Inventory/Node */
+	BT_ACCELALLOC,		/* Basil 4.0 Inventory/Node */
+#define BT_4_0_MAX              (BT_ACCELALLOC + 1)	/* End of Basil 4.0 */
 	/* FIXME: the Basil 4.1 interface is not yet fully released */
-#define BT_4_1_MAX              BT_3_1_MAX              /* End of Basil 4.1 */
+#define BT_4_1_MAX              BT_4_0_MAX              /* End of Basil 4.1 */
 	BT_MAX			/* End of Basil tags */
 };
 
@@ -238,6 +241,21 @@ enum basil_gpc_mode {	/* Basil 3.1 */
 	BGM_MAX
 };
 
+enum basil_acceltype {	/* Alps 4.x (Basil 1.2) */
+	BA_NONE = 0,
+	BA_GPU,
+	BA_UNKNOWN,
+	BA_MAX
+};
+
+enum basil_accelstate {	/* Alps 4.x (Basil 1.2) */
+	BAS_NONE = 0,
+	BAS_UP,
+	BAS_DOWN,
+	BAS_UNKNOWN,
+	BAS_MAX
+};
+
 /*
  * Inventory structs
  */
@@ -289,16 +307,34 @@ struct basil_segment {
 	struct basil_segment *next;
 };
 
+struct basil_accel_alloc {		/* Basil 1.2, Alps 4.x */
+	uint32_t	rsvn_id;	/* reservation_id attribute */
+	/* NB: exclusive use of Accelerator/GPU, i.e. at most 1 allocation */
+};
+
+struct basil_node_accelerator {		/* Basil 1.2, Alps 4.x */
+	uint32_t		  ordinal;	/* must be 0 in Basil 1.2 */
+	enum basil_acceltype	  type;		/* must be BA_GPU in Basil 1.2 */
+	enum basil_accelstate	  state;
+	char 			  family[BASIL_STRING_LONG];
+	uint32_t		  memory_mb;
+	uint32_t		  clock_mhz;
+	struct basil_accel_alloc *allocation;
+
+	struct basil_node_accelerator *next;
+};
+
 struct basil_node {
 	uint32_t node_id;
-	uint32_t router_id;			/* Basil 3.1 */
+	uint32_t router_id;				/* Basil 3.1 */
 	char	 name[BASIL_STRING_SHORT];
 
 	enum basil_node_arch	arch;
 	enum basil_node_role	role;
 	enum basil_node_state	state;
 
-	struct basil_segment	*seg_head;	/* Basil 1.1 */
+	struct basil_segment		*seg_head;	/* Basil 1.1 */
+	struct basil_node_accelerator	*accel_head;	/* Basil 1.2 */
 
 	struct basil_node *next;
 };
@@ -382,6 +418,14 @@ struct basil_memory_param {
 	struct basil_memory_param *next;
 };
 
+struct basil_accel_param {
+	enum basil_acceltype	type;
+	char 			family[BASIL_STRING_LONG];
+	uint32_t		memory_mb;
+
+	struct basil_accel_param *next;
+};
+
 struct basil_rsvn_param {
 	enum basil_node_arch	arch;		/* "architecture", XT or X2, -a  */
 	long			width,		/* required mppwidth > 0,    -n  */
@@ -394,6 +438,7 @@ struct basil_rsvn_param {
 	char				*nodes;		/* NodeParamArray   */
 	struct basil_label		*labels;	/* LabelParamArray  */
 	struct basil_memory_param	*memory;	/* MemoryParamArray */
+	struct basil_accel_param	*accel;		/* AccelParamArray  */
 
 	struct basil_rsvn_param		*next;
 };
@@ -471,6 +516,9 @@ extern const char *nam_nodestate[BNS_MAX];
 extern const char *nam_proc[BPT_MAX];
 extern const char *nam_rsvn_mode[BRM_MAX];
 extern const char *nam_gpc_mode[BGM_MAX];
+
+extern const char *nam_acceltype[BA_MAX];
+extern const char *nam_accelstate[BAS_MAX];
 
 /**
  * struct nodespec  -  representation of node ranges
@@ -556,7 +604,8 @@ extern void   free_inv(struct basil_inventory *inv);
 
 extern long basil_reserve(const char *user, const char *batch_id,
 			  uint32_t width, uint32_t depth, uint32_t nppn,
-			  uint32_t mem_mb, struct nodespec *ns_head);
+			  uint32_t mem_mb, struct nodespec *ns_head,
+			  struct basil_accel_param *accel_head);
 extern int basil_confirm(uint32_t rsvn_id, int job_id, uint64_t pagg_id);
 extern const struct basil_rsvn *basil_rsvn_by_id(const struct basil_inventory *inv,
 						 uint32_t resvn_id);

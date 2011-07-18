@@ -4675,7 +4675,7 @@ static bool _valid_pn_min_mem(job_desc_msg_t * job_desc_msg)
 		return false;
 	}
 
-	/* Our size is per CPU and limit per node or vise-versa.
+	/* Our size is per CPU and limit per node or vice-versa.
 	 * CPU count my vary by node, but we don't have a good
 	 * way to identify specific nodes for the job at this
 	 * point, so just pick the first node as a basis for enforcing
@@ -6496,7 +6496,8 @@ int update_job(job_desc_msg_t * job_specs, uid_t uid)
 		 * for lack of other field in the job request to use */
 		if ((job_specs->req_nodes[0] == '\0') ||
 		    node_name2bitmap(job_specs->req_nodes,false, &req_bitmap) ||
-		    !bit_super_set(req_bitmap, job_ptr->node_bitmap)) {
+		    !bit_super_set(req_bitmap, job_ptr->node_bitmap) ||
+		    job_ptr->details->expanding_jobid) {
 			info("sched: Invalid node list (%s) for job %u update",
 			     job_specs->req_nodes, job_specs->job_id);
 			error_code = ESLURM_INVALID_NODE_NAME;
@@ -7436,7 +7437,8 @@ int update_job(job_desc_msg_t * job_specs, uid_t uid)
 			if (error_code)
 				goto fini;
 		} else if ((job_specs->min_nodes == 0) ||
-		           (job_specs->min_nodes > job_ptr->node_cnt)) {
+		           (job_specs->min_nodes > job_ptr->node_cnt) ||
+			   job_ptr->details->expanding_jobid) {
 			info("sched: Invalid node count (%u) for job %u update",
 			     job_specs->min_nodes, job_specs->job_id);
 			error_code = ESLURM_INVALID_NODE_COUNT;

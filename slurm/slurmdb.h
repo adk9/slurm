@@ -595,9 +595,13 @@ typedef struct {
 				   * using this qos */
 	uint32_t max_cpus_pj; /* max number of cpus a job can
 			       * allocate with this qos */
+	uint32_t max_cpus_pu; /* max number of cpus a user can
+			       * allocate with this qos at one time */
 	uint32_t max_jobs_pu;	/* max number of jobs a user can
 				 * run with this qos at one time */
 	uint32_t max_nodes_pj; /* max number of nodes a job can
+				* allocate with this qos at one time */
+	uint32_t max_nodes_pu; /* max number of nodes a user can
 				* allocate with this qos at one time */
 	uint32_t max_submit_jobs_pu; /* max number of jobs a user can
 					submit with this qos at once */
@@ -721,7 +725,9 @@ typedef struct {
 typedef struct {
 	uint64_t cpu_run_mins; /* how many cpu mins are allocated
 				* currently */
+	uint32_t cpus; /* count of CPUs allocated */
 	uint32_t jobs;	/* count of active jobs */
+	uint32_t nodes;	/* count of nodes allocated */
 	uint32_t submit_jobs; /* count of jobs pending or running */
 	uint32_t uid;
 } slurmdb_used_limits_t;
@@ -1103,7 +1109,7 @@ extern List slurmdb_coord_remove(void *db_conn, List acct_list,
 
 /*
  * get info from the storage
- * RET: List of config_key_pairs_t *
+ * RET: List of config_key_pair_t *
  * note List needs to be freed with slurm_list_destroy() when called
  */
 extern List slurmdb_config_get(void *db_conn);

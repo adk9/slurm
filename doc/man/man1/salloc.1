@@ -318,7 +318,7 @@ in some failed state (non-zero exit code, node failure, timed out, etc).
 .TP
 \fBafterok:job_id[:jobid...]\fR
 This job can begin execution after the specified jobs have successfully
-executed (ran to completion with non-zero exit code).
+executed (ran to completion with an exit code of zero).
 .TP
 \fBexpand:job_id\fR
 Resources allocated to this job should be used to expand the specified job.
@@ -452,7 +452,7 @@ your command any time that the SLURM controller tells salloc that its job
 allocation has been revoked. The job allocation can be revoked for a
 couple of reasons: someone used \fBscancel\fR to revoke the allocation,
 or the allocation reached its time limit.  If you do not specify a signal
-name or number and SLURM is configured to signal a the spawned command at job
+name or number and SLURM is configured to signal the spawned command at job
 termination, the default signal is SIGHUP for interactive and SIGTERM for 
 non\-interactive sessions.
 

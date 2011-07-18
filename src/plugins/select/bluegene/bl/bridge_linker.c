@@ -533,7 +533,7 @@ static void _pre_allocate(bg_record_t *bg_record)
 #if defined HAVE_BG_FILES
 	int rc;
 	int send_psets=bg_conf->ionodes_per_mp;
-
+	rm_connection_type_t conn_type = bg_record->conn_type[0];
 #ifdef HAVE_BGL
 	if ((rc = bridge_set_data(bg_record->bg_block, RM_PartitionBlrtsImg,
 				  bg_record->blrtsimage)) != SLURM_SUCCESS)
@@ -580,8 +580,9 @@ static void _pre_allocate(bg_record_t *bg_record)
 		error("bridge_set_data(RM_PartitionMloaderImg): %s",
 		      bg_err_str(rc));
 
+	/* Don't send a * uint16_t into this it messes things up. */
 	if ((rc = bridge_set_data(bg_record->bg_block, RM_PartitionConnection,
-				  &bg_record->conn_type[0])) != SLURM_SUCCESS)
+				  &conn_type)) != SLURM_SUCCESS)
 		error("bridge_set_data(RM_PartitionConnection): %s",
 		      bg_err_str(rc));
 
@@ -767,7 +768,7 @@ static int _block_get_and_set_mps(bg_record_t *bg_record)
 	ba_switch_t *ba_switch = NULL;
 	ba_mp_t *ba_mp = NULL;
 	ListIterator itr = NULL;
-	rm_partition_t *block_ptr = (rm_partition_t *)bg_record->bg_block_id;
+	rm_partition_t *block_ptr = (rm_partition_t *)bg_record->bg_block;
 
 	debug2("getting info for block %s", bg_record->bg_block_id);
 
@@ -800,15 +801,12 @@ static int _block_get_and_set_mps(bg_record_t *bg_record)
 			error("find_bp_loc: bpid %s not known", switchid);
 			goto end_it;
 		}
-		ba_node = xmalloc(sizeof(ba_mp_t));
+		ba_node = ba_copy_mp(ba_mp);
+		ba_setup_mp(ba_node, 0, 0);
+		ba_node->used = BA_MP_USED_TRUE;
 		if (!bg_record->ba_mp_list)
 			bg_record->ba_mp_list = list_create(destroy_ba_mp);
 		list_push(bg_record->ba_mp_list, ba_node);
-		ba_node->coord[X] = ba_mp->coord[X];
-		ba_node->coord[Y] = ba_mp->coord[Y];
-		ba_node->coord[Z] = ba_mp->coord[Z];
-
-		ba_node->used = TRUE;
 		return SLURM_SUCCESS;
 	}
 	for (i=0; i<switch_cnt; i++) {
@@ -874,15 +872,12 @@ static int _block_get_and_set_mps(bg_record_t *bg_record)
 		}
 
 		if (!ba_node) {
-			ba_node = xmalloc(sizeof(ba_mp_t));
+			ba_node = ba_copy_mp(ba_mp);
+			ba_setup_mp(ba_node, 0, 0);
 			if (!bg_record->ba_mp_list)
 				bg_record->ba_mp_list =
 					list_create(destroy_ba_mp);
-
 			list_push(bg_record->ba_mp_list, ba_node);
-			ba_node->coord[X] = ba_mp->coord[X];
-			ba_node->coord[Y] = ba_mp->coord[Y];
-			ba_node->coord[Z] = ba_mp->coord[Z];
 		}
 		ba_switch = &ba_node->axis_switch[dim];
 		for (j=0; j<cnt; j++) {
@@ -908,37 +903,6 @@ static int _block_get_and_set_mps(bg_record_t *bg_record)
 					      bg_err_str(rc));
 					goto end_it;
 				}
-			}
-			switch(curr_conn.p1) {
-			case RM_PORT_S1:
-				curr_conn.p1 = 1;
-				break;
-			case RM_PORT_S2:
-				curr_conn.p1 = 2;
-				break;
-			case RM_PORT_S4:
-				curr_conn.p1 = 4;
-				break;
-			default:
-				error("1 unknown port %d",
-				      _port_enum(curr_conn.p1));
-				goto end_it;
-			}
-
-			switch(curr_conn.p2) {
-			case RM_PORT_S0:
-				curr_conn.p2 = 0;
-				break;
-			case RM_PORT_S3:
-				curr_conn.p2 = 3;
-				break;
-			case RM_PORT_S5:
-				curr_conn.p2 = 5;
-				break;
-			default:
-				error("2 unknown port %d",
-				      _port_enum(curr_conn.p2));
-				goto end_it;
 			}
 
 			if (curr_conn.p1 == 1 && dim == X) {
@@ -980,8 +944,10 @@ static int _block_get_and_set_mps(bg_record_t *bg_record)
 	}
 	return SLURM_SUCCESS;
 end_it:
-	if (bg_record->ba_mp_list)
+	if (bg_record->ba_mp_list) {
 		list_destroy(bg_record->ba_mp_list);
+		bg_record->ba_mp_list = NULL;
+	}
 	return SLURM_ERROR;
 }
 
@@ -1006,6 +972,13 @@ static bg_record_t *_translate_object_to_block(rm_partition_t *block_ptr,
 	bg_record->magic = BLOCK_MAGIC;
 	bg_record->bg_block = block_ptr;
 	bg_record->bg_block_id = xstrdup(bg_block_id);
+
+	/* we don't need anything else since we are just getting rid
+	   of the thing.
+	*/
+	if (!bg_recover)
+		return bg_record;
+
 #ifndef HAVE_BGL
 	if ((rc = bridge_get_data(block_ptr, RM_PartitionSize, &mp_cnt))
 	    != SLURM_SUCCESS) {
@@ -1014,9 +987,10 @@ static bg_record_t *_translate_object_to_block(rm_partition_t *block_ptr,
 		goto end_it;
 	}
 
-	if (mp_cnt==0)
+	if (mp_cnt==0) {
+		error("it appear we have 0 cnodes in block %s", bg_block_id);
 		goto end_it;
-
+	}
 	bg_record->cnode_cnt = mp_cnt;
 	bg_record->cpu_cnt = bg_conf->cpu_ratio * bg_record->cnode_cnt;
 #endif
@@ -1028,8 +1002,10 @@ static bg_record_t *_translate_object_to_block(rm_partition_t *block_ptr,
 		goto end_it;
 	}
 
-	if (mp_cnt==0)
+	if (mp_cnt==0) {
+		error("it appear we have 0 Midplanes in block %s", bg_block_id);
 		goto end_it;
+	}
 	bg_record->mp_count = mp_cnt;
 
 	debug3("has %d MPs", bg_record->mp_count);
@@ -1191,21 +1167,24 @@ static bg_record_t *_translate_object_to_block(rm_partition_t *block_ptr,
 		       bg_record->bg_block_id,
 		       bg_record->ionode_str);
 	} else {
+		rm_connection_type_t conn_type;
 #ifdef HAVE_BGL
 		bg_record->cpu_cnt = bg_conf->cpus_per_mp
 			* bg_record->mp_count;
 		bg_record->cnode_cnt =  bg_conf->mp_cnode_cnt
 			* bg_record->mp_count;
 #endif
+		/* Don't send a * uint16_t into this it messes things up. */
 		if ((rc = bridge_get_data(block_ptr,
 					  RM_PartitionConnection,
-					  &bg_record->conn_type[0]))
+					  &conn_type))
 		    != SLURM_SUCCESS) {
 			error("bridge_get_data"
 			      "(RM_PartitionConnection): %s",
 			      bg_err_str(rc));
 			goto end_it;
 		}
+		bg_record->conn_type[0] = conn_type;
 		/* Set the bitmap blank here if it is a full
 		   node we don't want anything set we also
 		   don't want the bg_record->ionodes set.
@@ -1384,8 +1363,13 @@ static bg_record_t *_translate_object_to_block(rm_partition_t *block_ptr,
 
 	return bg_record;
 end_it:
-	destroy_bg_record(bg_record);
-	return NULL;
+	error("Something bad happened with load of %s", bg_block_id);
+	if (bg_recover) {
+		error("Can't use %s not adding", bg_block_id);
+		destroy_bg_record(bg_record);
+		bg_record = NULL;
+	}
+	return bg_record;
 }
 #endif
 
@@ -1619,10 +1603,22 @@ extern int bridge_block_boot(bg_record_t *bg_record)
 		return rc;
 
 	slurm_mutex_lock(&api_file_mutex);
+	if ((rc = _bg_errtrans((*(bridge_api.set_part_owner))(
+				  bg_record->bg_block_id,
+				  bg_conf->slurm_user_name)))
+	    != SLURM_SUCCESS) {
+		error("bridge_set_block_owner(%s,%s): %s",
+		      bg_record->bg_block_id,
+		      bg_conf->slurm_user_name,
+		      bg_err_str(rc));
+		slurm_mutex_unlock(&api_file_mutex);
+		return rc;
+	}
+
 	rc = _bg_errtrans((*(bridge_api.create_partition))
 			  (bg_record->bg_block_id));
-	if (rc == BG_ERROR_INVALID_STATE)
-		rc = BG_ERROR_BOOT_ERROR;
+	/* if (rc == BG_ERROR_INVALID_STATE) */
+	/* 	rc = BG_ERROR_BOOT_ERROR; */
 
 	slurm_mutex_unlock(&api_file_mutex);
 	return rc;
@@ -1644,8 +1640,8 @@ extern int bridge_block_free(bg_record_t *bg_record)
 		return rc;
 
 	slurm_mutex_lock(&api_file_mutex);
-	rc = _bg_errtrans(_bg_errtrans((*(bridge_api.destroy_partition))
-				       (bg_record->bg_block)));
+	rc = _bg_errtrans((*(bridge_api.destroy_partition))
+			  (bg_record->bg_block_id));
 	slurm_mutex_unlock(&api_file_mutex);
 	return rc;
 #else
@@ -1797,11 +1793,6 @@ extern int bridge_block_remove_all_users(bg_record_t *bg_record,
 	return returnc;
 }
 
-extern int bridge_block_set_owner(bg_record_t *bg_record, char *user_name)
-{
-	return SLURM_ERROR;
-}
-
 /*
  * Download from MMCS the initial BG block information
  */
@@ -1847,7 +1838,7 @@ extern int bridge_blocks_load_curr(List curr_block_list)
 
 	info("querying the system for existing blocks");
 	for(block_number=0; block_number<block_count; block_number++) {
-		uint16_t state;
+		int state;
 		if (block_number) {
 			if ((rc = bridge_get_data(block_list,
 						  RM_PartListNextPart,
@@ -1895,7 +1886,8 @@ extern int bridge_blocks_load_curr(List curr_block_list)
 			     bg_block_id);
 			bg_record = _translate_object_to_block(
 				block_ptr, bg_block_id);
-			slurm_list_append(curr_block_list, bg_record);
+			if (bg_record)
+				list_push(curr_block_list, bg_record);
 		}
 		free(bg_block_id);
 		bg_record->modifying = 1;
@@ -2162,7 +2154,7 @@ extern status_t bridge_get_data(rm_element_t* element,
 			*state = BG_BLOCK_TERM;
 			break;
 		case RM_PARTITION_ERROR:
-			*state |= BG_BLOCK_ERROR_FLAG;
+			*state = BG_BLOCK_ERROR_FLAG;
 			break;
 		case RM_PARTITION_NAV:
 			*state = BG_BLOCK_NAV;
@@ -2383,19 +2375,6 @@ extern status_t bridge_free_nodecard(rm_nodecard_t *nodecard)
 
 	slurm_mutex_lock(&api_file_mutex);
 	rc = _bg_errtrans((*(bridge_api.free_nodecard))(nodecard));
-	slurm_mutex_unlock(&api_file_mutex);
-	return rc;
-
-}
-
-extern status_t bridge_set_block_owner(pm_partition_id_t pid, const char *name)
-{
-	int rc = BG_ERROR_CONNECTION_ERROR;
-	if (!bridge_init(NULL))
-		return rc;
-
-	slurm_mutex_lock(&api_file_mutex);
-	rc = _bg_errtrans((*(bridge_api.set_part_owner))(pid, name));
 	slurm_mutex_unlock(&api_file_mutex);
 	return rc;
 
